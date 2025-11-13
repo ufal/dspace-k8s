@@ -1,0 +1,87 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: dspace-postgres
+spec:
+  # PRODUCTION: 3 instances (1 primary + 2 replicas for HA)
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:13.22
+  
+  # High Availability configuration
+  minSyncReplicas: 1  # Ensure at least 1 replica is in sync (data safety)
+  maxSyncReplicas: 1  # Balance between safety and performance
+  
+  bootstrap:
+    initdb:
+      database: dspace
+      owner: dspace
+      secret:
+        name: dspace-postgres-superuser
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS pgcrypto;
+        - GRANT ALL PRIVILEGES ON SCHEMA public TO dspace;
+        - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dspace;
+        - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dspace;
+  
+  storage:
+    size: 20Gi
+    storageClass: csi-ceph-rbd-du
+  
+  # WAL storage
+  walStorage:
+    size: 10Gi
+    storageClass: csi-ceph-rbd-du
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "4000m"
+  
+  # PostgreSQL configuration optimized for DSpace production
+  postgresql:
+    parameters:
+      max_connections: "300"
+      shared_buffers: "1GB"
+      effective_cache_size: "3GB"
+      maintenance_work_mem: "256MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+      work_mem: "3495kB"
+      min_wal_size: "2GB"
+      max_wal_size: "8GB"
+
+      # Additional production tuning
+      wal_level: "replica"                # Required for replication
+      max_wal_senders: "10"               # Support for replicas
+      max_replication_slots: "10"
+      log_line_prefix: "%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+      log_checkpoints: "on"
+      log_connections: "on"
+      log_disconnections: "on"
+      log_lock_waits: "on"
+      log_temp_files: "0"
+      log_autovacuum_min_duration: "0"
+
+      # Performance monitoring
+      track_io_timing: "on"
+      track_functions: "all"
+  
+  monitoring:
+    enablePodMonitor: true
+  
+  # Affinity rules - distribute replicas across nodes
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  
+  primaryUpdateStrategy: unsupervised  # Allow automatic primary switchover during updates
+  
+  failoverDelay: 10  # Wait 10s before failover when primary fails (recommended for production)
+  switchoverDelay: 60  # Wait 60s before planned switchover (allow connections to drain)

@@ -1,0 +1,400 @@
+# DSpace CronJobs for Kubernetes
+
+---
+# Index Discovery - Daily at midnight
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-index-discovery
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace index-discovery -b
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# Health Report - Daily at midnight (ENABLED)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-health-report
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace health-report -e YOUR.EMAIL@DOMAIN.COM
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# OAI Import - Daily at 11 PM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-oai-import
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "0 23 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace oai import
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# Subscription Send (Daily) - Daily at 3:01 AM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-subscription-daily
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "1 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace subscription-send -f D
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# Subscription Send (Weekly) - Sundays at 3:02 AM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-subscription-weekly
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "2 3 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace subscription-send -f W
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# Subscription Send (Monthly) - 1st day of month at 3:03 AM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-subscription-monthly
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "3 3 1 * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace subscription-send -f M
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+
+---
+# Cleanup - 1st day of month at 4:00 AM
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-cleanup
+  namespace: clarin-dspace-ns
+spec:
+  schedule: "0 4 1 * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
+          containers:
+          - name: dspace-cli
+            image: dataquest/dspace:customer-palo-docker
+            command: ["/bin/sh", "-c"]
+            args:
+              - /dspace/bin/dspace cleanup
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 999
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: solr-data-pvc
+spec:
+  # Using Ceph RBD block storage for better Solr index performance
+  storageClassName: csi-ceph-rbd-du
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

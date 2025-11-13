@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dspace-solr
+  labels:
+    app: dspace-solr
+spec:
+  serviceName: dspace-solr-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dspace-solr
+  template:
+    metadata:
+      labels:
+        app: dspace-solr
+    spec:
+      # Fix permissions for Ceph RBD volume (fsGroup sets ownership to 8983:8983)
+      securityContext:
+        fsGroup: 8983
+        fsGroupChangePolicy: "OnRootMismatch"
+      containers:
+        - name: solr
+          image: dataquest/dspace-solr:dspace-7_x
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              init-var-solr
+              precreate-core authority /opt/solr/server/solr/configsets/authority
+              precreate-core oai /opt/solr/server/solr/configsets/oai
+              precreate-core search /opt/solr/server/solr/configsets/search
+              precreate-core statistics /opt/solr/server/solr/configsets/statistics
+              exec solr -f
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 8983
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - containerPort: 8983
+              name: solr
+          volumeMounts:
+            - name: solr-data
+              mountPath: /var/solr/data
+          readinessProbe:
+            httpGet:
+              path: /solr/
+              port: 8983
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /solr/
+              port: 8983
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+      volumes:
+        - name: solr-data
+          persistentVolumeClaim:
+            claimName: solr-data-pvc

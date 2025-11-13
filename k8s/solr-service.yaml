@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dspace-solr-service
+spec:
+  selector:
+    app: dspace-solr
+  ports:
+    - name: solr
+      protocol: TCP
+      port: 8983
+      targetPort: 8983
+  type: ClusterIP

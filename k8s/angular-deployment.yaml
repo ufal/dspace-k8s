@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dspace-angular
+  labels:
+    app: dspace-angular
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dspace-angular
+  template:
+    metadata:
+      labels:
+        app: dspace-angular
+    spec:
+      volumes:
+        - name: local-config
+          configMap:
+            name: local-config-map
+      containers:
+        - name: dspace-angular
+          image: dataquest/dspace-angular:customer-palo-docker
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - containerPort: 4000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "4000"
+            - name: DSPACE_UI_HOST
+              value: "0.0.0.0"
+            - name: DSPACE_UI_PORT
+              value: "4000"
+            - name: DSPACE_UI_ALLOWED_HOSTS
+              value: "*"
+          volumeMounts:
+            - name: local-config
+              mountPath: /app/src/environments/environment.prod.ts
+              subPath: environment.prod.ts
+            - name: local-config
+              mountPath: /app/config/config.yml
+              subPath: config.yml
+          readinessProbe:
+            httpGet:
+              path: /assets/config.json
+              port: 4000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /assets/config.json
+              port: 4000
+              scheme: HTTP
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3

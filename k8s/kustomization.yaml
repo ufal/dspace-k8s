@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Set namespace for all resources
+namespace: clarin-dspace-ns
+
+resources:
+  - assets-pvc.yaml
+  - solr-pvc.yaml
+  - postgres-cnpg-secret.yaml
+  - postgres-cnpg-cluster.yaml
+  - solr-service.yaml
+  - solr-statefulset.yaml
+  - dspace-configmap.yaml
+  - backend-service.yaml
+  - backend-deployment.yaml
+  - angular-service.yaml
+  - angular-deployment.yaml
+  - dspace-ingress.yaml
+  - s3-assetstore-secret.yaml
+  - dspace-cronjobs.yaml
