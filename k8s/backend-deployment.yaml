@@ -14,6 +14,8 @@ spec:
       labels:
         app: dspace-backend
     spec:
+      securityContext:
+        fsGroup: 1000
       volumes:
         - name: assetstore
           persistentVolumeClaim:
@@ -23,7 +25,7 @@ spec:
             name: local-config-map
       containers:
         - name: dspace
-          image: dataquest/dspace:customer-palo-docker
+          image: dataquest/dspace:dspace-7_x
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -37,7 +39,7 @@ spec:
             capabilities:
               drop: ["ALL"]
             runAsNonRoot: true
-            runAsUser: 999
+            runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
           command: ['/bin/bash', '-c']

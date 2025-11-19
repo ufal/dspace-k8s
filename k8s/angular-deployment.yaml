@@ -20,7 +20,7 @@ spec:
             name: local-config-map
       containers:
         - name: dspace-angular
-          image: dataquest/dspace-angular:customer-palo-docker
+          image: dataquest/dspace-angular:dspace-7_x
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -61,19 +61,15 @@ spec:
               mountPath: /app/config/config.yml
               subPath: config.yml
           readinessProbe:
-            httpGet:
-              path: /assets/config.json
+            tcpSocket:
               port: 4000
-              scheme: HTTP
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
           livenessProbe:
-            httpGet:
-              path: /assets/config.json
+            tcpSocket:
               port: 4000
-              scheme: HTTP
             initialDelaySeconds: 120
             periodSeconds: 20
             timeoutSeconds: 5
