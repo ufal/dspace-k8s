@@ -19,8 +19,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -45,7 +45,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -76,8 +76,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -102,7 +102,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -133,8 +133,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -159,7 +159,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -190,8 +190,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -216,7 +216,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -247,8 +247,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -273,7 +273,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -304,8 +304,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -330,7 +330,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg
@@ -361,8 +361,8 @@ spec:
           restartPolicy: OnFailure
           securityContext:
             runAsNonRoot: true
-            runAsUser: 999
-            fsGroup: 999
+            runAsUser: 1100
+            fsGroup: 1100
             seccompProfile:
               type: RuntimeDefault
           volumes:
@@ -387,7 +387,7 @@ spec:
               capabilities:
                 drop: ["ALL"]
               runAsNonRoot: true
-              runAsUser: 999
+              runAsUser: 1100
             volumeMounts:
             - name: local-config
               mountPath: /dspace/config/local.cfg

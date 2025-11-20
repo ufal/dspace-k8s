@@ -15,7 +15,7 @@ spec:
         app: dspace-backend
     spec:
       securityContext:
-        fsGroup: 1000
+        fsGroup: 1100
       volumes:
         - name: assetstore
           persistentVolumeClaim:
@@ -26,7 +26,7 @@ spec:
       containers:
         - name: dspace
           image: dataquest/dspace:dspace-7_x
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           resources:
             requests:
               cpu: 1000m
@@ -39,7 +39,7 @@ spec:
             capabilities:
               drop: ["ALL"]
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1100
             seccompProfile:
               type: RuntimeDefault
           command: ['/bin/bash', '-c']

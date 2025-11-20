@@ -21,7 +21,7 @@ spec:
       containers:
         - name: dspace-angular
           image: dataquest/dspace-angular:dspace-7_x
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           resources:
             requests:
               cpu: 500m

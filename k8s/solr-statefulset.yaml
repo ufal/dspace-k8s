@@ -22,7 +22,7 @@ spec:
       containers:
         - name: solr
           image: dataquest/dspace-solr:dspace-7_x
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - /bin/bash
             - -c
