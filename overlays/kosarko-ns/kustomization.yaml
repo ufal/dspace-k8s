@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+
+namespace: kosarko-ns   # <-- change to whatever you need
+
+# -------------------------------------------------------------------------
+# 3️⃣  Patches that change the public hostname
+# -------------------------------------------------------------------------
+patches:
+  - path: angular-deployment.yaml
+    target:
+      kind: Deployment
+      name: dspace-angular
+  - path: backend-deployment.yaml
+    target:
+      kind: Deployment
+      name: dspace-backend
+  - path: dspace-ingress.yaml
+    target:
+      kind: Ingress
+      name: dspace-ingress
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: remove
+        path: /metadata/namespace
+  #- path: namespace.yaml        # makes sure any hard‑coded namespace in the
+  #  target:
+  #    kind: CronJob
+                          # CronJobs (they have `namespace:` set) is also
+                          # rewritten – see the file below.
+
+# -------------------------------------------------------------------------
+# 4️⃣  Optional: give the whole deployment a common label so you can
+#     select/delete it later with `kubectl -l app=my-dspace-dev`
+# -------------------------------------------------------------------------
+#commonLabels:
+#  app: my-dspace-dev
+# OK: I don't understand what's this supposed to do, yet
+#labels:
+#  - includeSelectors: true
+#    pairs:
+#      app: my-dspace-dev
+#
