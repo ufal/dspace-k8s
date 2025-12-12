@@ -27,6 +27,12 @@ patches:
     patch: |-
       - op: remove
         path: /metadata/namespace
+  - target:
+      kind: Cluster
+    patch: |-
+      - op: replace
+        path: /spec/imageName
+        value: ghcr.io/cloudnative-pg/postgresql:16.11-system-bullseye
   #- path: namespace.yaml        # makes sure any hard‑coded namespace in the
   #  target:
   #    kind: CronJob
