@@ -27,7 +27,7 @@ echo.
 echo === Deployment Complete ===
 echo.
 echo Access your application at:
-echo   https://test-hello.dyn.cloud.e-infra.cz/
+echo   https://hello-clarin-dspace.dyn.cloud.e-infra.cz/
 echo.
 echo To scale components independently:
 echo   kubectl scale deployment dspace-angular -n clarin-dspace-ns --replicas=2
