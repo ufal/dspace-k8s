@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-config-map
+data:
+  local.cfg: |-
+    dspace.dir = /dspace
+    db.url = jdbc:postgresql://dspace-postgres-rw:5432/dspace
+    db.username = dspace
+    # db.password is read from environment variable POSTGRES_PASSWORD (set in deployment)
+    db.password = ${env:POSTGRES_PASSWORD}
+    # External hostname served by Ingress (TLS terminated at Ingress)
+    dspace.hostname = hello-clarin-dspace.dyn.cloud.e-infra.cz
+    # External-facing URLs should omit ports (Ingress terminates TLS on 443)
+    dspace.baseUrl = https://${dspace.hostname}
+    dspace.ui.url = https://${dspace.hostname}
+    # The /server path is routed by the Ingress to the backend (no external port)
+    dspace.server.url = https://${dspace.hostname}/server
+    # Allow CORS from external hostname and localhost for local development
+    rest.cors.allowed-origins = https://${dspace.hostname}
+    # Solr now runs in a separate StatefulSet with its own service
+    solr.server = http://dspace-solr-service:8983/solr
+    management.health.solr.enabled = false
+    management.endpoint.health.show-details = never
+    useProxies = true
+    proxies.trusted.include_ui_ip = true
+    # Restrict trusted proxies to cluster Pod CIDR
+    # Only trust X-Forwarded-* headers from Ingress controller within cluster network
+    proxies.trusted.ipranges = 10.42.0.0/16
+
+    #### S3 Assetstore Configuration ####
+
+    # Enable S3 assetstore as Store 1 (primary)
+    assetstore.dir = /dspace/assetstore
+    assetstore.index.primary = 1
+
+    # S3 Assetstore Configuration (Store 1)
+    assetstore.s3.enabled = true
+    assetstore.s3.useRelativePath = true
+
+    # S3 credentials and endpoint (loaded from environment variables for security)
+    assetstore.s3.awsAccessKey = ${env:AWS_ACCESS_KEY_ID}
+    assetstore.s3.awsSecretKey = ${env:AWS_SECRET_ACCESS_KEY}
+    assetstore.s3.endpoint = ${env:S3_ENDPOINT}
+    assetstore.s3.awsRegionName = ${env:S3_REGION}
+    assetstore.s3.bucketName = ${env:S3_BUCKET_NAME}
+
+    # S3 upload configuration
+    assetstore.s3.subfolder = bitstreams
+    assetstore.s3.awsClientMaxRetry = 3
+    assetstore.s3.awsClientMaxConnections = 50
+
+    # Enable path-style access (required for CESNET S3 and other S3-compatible services)
+    assetstore.s3.pathStyleAccessEnabled = true
+
+    # Database connection pool tuning
+    # Increase from default 10-20 to support more concurrent users
+    db.maxconnections = 100
+    # Maximum wait time in milliseconds for a connection
+    db.maxwait = 10000
+    # Maximum idle connections in the pool
+    db.maxidle = 20
+
+  environment.prod.ts: |-
+    export const environment = {
+      production: true,
+      // Use the runtime browser host/port so client requests do not hardcode container ports
+      rest: { ssl: true, host: window.location.hostname, port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80), nameSpace: '/server' },
+      ui: { ssl: true, host: window.location.hostname, port: window.location.port || (window.location.protocol === 'https:' ? 443 : 80), nameSpace: '/' }
+    };
+  # Angular runtime config used by the dspace/dspace-angular image (SSR)
+  config.yml: |-
+    rest:
+      # For client-side (browser), use external HTTPS URL
+      ssl: true
+      host: hello-clarin-dspace.dyn.cloud.e-infra.cz
+      port: 443
+      nameSpace: /server
+    ui:
+      # SSR server runs HTTP internally, ingress handles TLS
+      ssl: false
+      host: 0.0.0.0
+      port: 4000
+      nameSpace: /
+    # Universal server-side settings
+    universal:
+      preboot: true
+      async: true
+      time: false

@@ -1,1 +1,433 @@
-# dspace-k8s
+# DSpace 7 – Kubernetes Deployment for Rancher Cloud
+
+This directory contains a DSpace 7 Kubernetes deployment configuration for Rancher Cloud with a scalable split architecture.
+
+## Current Architecture
+
+Split architecture with independent, scalable components:
+
+1. **Angular Frontend** (`dspace-angular` Deployment)
+   - Container port: 4000
+   - Service: `dspace-angular-service` (ClusterIP)
+   - Path: `/`
+
+2. **Backend API** (`dspace-backend` Deployment)
+   - Container port: 8080
+   - Service: `dspace-backend-service` (ClusterIP)
+   - Path: `/server`
+
+3. **Solr Search** (`dspace-solr` StatefulSet)
+   - Container port: 8983
+   - Service: `dspace-solr-service` (ClusterIP)
+   - Persistent storage: 5Gi PVC
+
+4. **PostgreSQL Database** (CloudNativePG Cluster - **Managed Database**)
+   - Container port: 5432
+   - Services:
+     - `dspace-postgres-rw` (read-write, primary)
+     - `dspace-postgres-ro` (read-only replicas)
+     - `dspace-postgres-r` (any instance)
+   - Persistent storage: 20Gi PVC per instance
+
+External access via Ingress:
+- Host: `hello-clarin-dspace.dyn.cloud.e-infra.cz`
+- TLS: Let's Encrypt certificate
+- Routes: `/` → Angular, `/server` → Backend API
+All services use ClusterIP. Only HTTPS (443) is exposed externally.
+
+### **Storage Configuration**
+
+**Current Configuration (Optimized for Performance):**
+
+| Component | Storage Class | Size | Reason |
+|-----------|--------------|------|--------|
+| **PostgreSQL** | `csi-ceph-rbd-du` | 20Gi | Fast block storage for database operations |
+| **Solr** | `csi-ceph-rbd-du` | 5Gi | Better performance for search indexing |
+| **Assets** | `nfs-csi` | 5Gi | Good for large files, supports multi-pod access |
+| **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored in S3 |
+
+**S3 Configuration:**
+- Credentials stored in `k8s/s3-assetstore-secret.yaml`
+- S3 settings in `k8s/dspace-configmap.yaml` (endpoint, bucket, region)
+- **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
+
+## Pre-Deployment Configuration
+
+**IMPORTANT: Review and update these files before deploying to production!**
+
+### 1. **Rancher Kubeconfig Token** - `kubeconfig.yaml`
+   ```yaml
+   users:
+   - name: kuba-cluster
+     user:
+       token: YOUR_RANCHER_TOKEN_HERE
+   ```
+
+### 2. **Database Credentials** - `k8s/postgres-cnpg-secret.yaml`
+   ```yaml
+   stringData:
+     username: dspace
+     password: YOUR_PASSWORD_HERE
+   ```
+
+### 3. **S3 Storage Credentials** - `k8s/s3-assetstore-secret.yaml`
+   ```yaml
+   stringData:
+     AWS_ACCESS_KEY_ID: "YOUR_ACCESS_KEY"
+     AWS_SECRET_ACCESS_KEY: "YOUR_SECRET_KEY"
+     S3_ENDPOINT: "https://s3.cl4.du.cesnet.cz"
+     S3_BUCKET_NAME: "testbucket"
+     S3_REGION: "eu-central-1"
+   ```
+
+### 4. **Domain/Hostname Configuration** - `k8s/dspace-ingress.yaml`
+   ```yaml
+   spec:
+     tls:
+       - hosts:
+           - YOUR-DOMAIN.EXAMPLE.COM
+         secretName: YOUR-DOMAIN-EXAMPLE-COM-TLS
+     rules:
+       - host: YOUR-DOMAIN.EXAMPLE.COM
+   ```
+
+### 5. **DSpace Configuration** - `k8s/dspace-configmap.yaml`
+
+   **What to set:**
+   - `dspace.hostname`: YOUR-DOMAIN.EXAMPLE.COM (must match Ingress host)
+   - `proxies.trusted.ipranges`: Your cluster's Pod CIDR (default: `10.42.0.0/16`)
+
+   - **Angular config (`config.yml`)**:
+     - `rest.host`: YOUR-DOMAIN.EXAMPLE.COM (for Angular SSR)
+
+   ```yaml
+   # In local.cfg section:
+   dspace.hostname = YOUR-DOMAIN.EXAMPLE.COM
+
+   # Optional - Email configuration for CronJob notifications
+   mail.server = smtp.your-provider.com
+   mail.server.port = 587
+   mail.server.username = your-smtp-user
+   mail.server.password = your-smtp-password
+   mail.from.address = noreply@your-domain.com
+   ```
+
+   ```yaml
+   # In config.yml section (Angular SSR):
+   rest:
+     ssl: true
+     host: YOUR-DOMAIN.EXAMPLE.COM
+     port: 443
+   ```
+
+### 6. **CronJob Email Configuration** - `k8s/dspace-cronjobs.yaml`
+
+   **Health Report Email:**
+   The `dspace-health-report` CronJob sends daily health reports to a specified email address.
+   - Replace `YOUR.EMAIL@DOMAIN.COM` with your actual admin email address
+   
+   ```yaml
+   # Find the `dspace-health-report` CronJob (line ~92)
+   - /dspace/bin/dspace health-report -e admin@your-domain.com
+   ```
+
+### 7. **Namespace** - `k8s/kustomization.yaml`
+
+   ```yaml
+   namespace: clarin-dspace-ns
+   ```
+
+### 8. **Backend entrypoint - `k8s/backend-deployment.yaml`
+
+   ```yaml
+   command: ['/bin/bash', '-c']
+   args:
+      # modify entry point according to your needs !!!
+      # possibly remove index discovery when not testing
+   ```
+
+## Verify Kubeconfig Setup
+
+1. Set your KUBECONFIG environment variable:
+   ```powershell
+   set KUBECONFIG=kubeconfig.yaml
+   kubectl config view --minify
+   ```
+
+2. Verify cluster connectivity:
+   ```powershell
+   kubectl get nodes
+   ```
+
+## Deploy to Rancher Cloud
+
+### Using Deployment Script (Recommended)
+
+```powershell
+.\deploy.bat
+```
+
+### Manual
+```powershell
+kubectl apply -k k8s/
+# wait for a 5-8 minutes and verify deployment
+kubectl get pods -n clarin-dspace-ns
+kubectl get services -n clarin-dspace-ns
+kubectl get pvc -n clarin-dspace-ns
+```
+
+Wait until all pods show `Running`:
+- `dspace-postgres-1` (CloudNativePG primary)
+- `dspace-solr-0`
+- `dspace-backend-xxxxx`
+- `dspace-angular-xxxxx`
+
+## Access
+
+- Frontend: https://hello-clarin-dspace.dyn.cloud.e-infra.cz/
+- Backend API: https://hello-clarin-dspace.dyn.cloud.e-infra.cz/server
+
+## Admin User
+
+### **Test/Development Environment**
+
+**ONLY for testing**, an admin user is auto-created on first deployment. The auto-creation is controlled by the `DSPACE_AUTO_CREATE_ADMIN` environment variable in `k8s/backend-deployment.yaml`.
+
+admin credentials:
+```
+Email: admin@admin.sk
+Password: admin
+```
+### **Production Environment**
+
+**IMPORTANT**: For production, you MUST disable auto-admin creation and create a secure admin manually.
+
+**Step 1: Disable Auto-Creation**
+
+Edit `k8s/backend-deployment.yaml` and change:
+```yaml
+- name: DSPACE_AUTO_CREATE_ADMIN
+  value: "false"
+```
+
+**Step 2: Deploy Without Default Admin**
+
+```powershell
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl rollout restart deployment dspace-backend -n clarin-dspace-ns
+```
+
+**Step 3: Create Admin Manually**
+
+```powershell
+# Get the backend pod name
+kubectl get pods -n clarin-dspace-ns -l app=dspace-backend
+
+# Create admin with YOUR credentials
+kubectl exec -it <backend-pod-name> -n clarin-dspace-ns -- /dspace/bin/dspace create-administrator -e your-email@example.com -f YourFirstName -l YourLastName -p YourSecurePassword123 -c en
+
+```
+
+## Scaling
+
+```powershell
+# Scale frontend
+kubectl scale deployment dspace-angular -n clarin-dspace-ns --replicas=3
+```
+
+```powershell
+# Scale backend
+kubectl scale deployment dspace-backend -n clarin-dspace-ns --replicas=2
+```
+
+```powershell
+# Scale PostgreSQL database (CloudNativePG)
+# set number of instances in yaml config
+kubectl apply -f k8s/postgres-cnpg-cluster.yaml
+```
+
+## CloudNativePG PostgreSQL Management
+
+### CNPG Cluster Status
+```powershell
+# Check cluster health
+kubectl get cluster.postgresql.cnpg.io -n clarin-dspace-ns
+
+# Check pods
+kubectl get pods -n clarin-dspace-ns -l cnpg.io/cluster=dspace-postgres
+
+# Check logs
+kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
+
+# Connect to database
+kubectl exec -it dspace-postgres-1 -n clarin-dspace-ns -- psql -U postgres -d dspace
+```
+
+## Updates
+
+```powershell
+kubectl apply -k k8s/
+kubectl rollout restart deployment/dspace-backend -n clarin-dspace-ns
+kubectl rollout restart deployment/dspace-angular -n clarin-dspace-ns
+```
+
+## DSpace CronJobs on Kubernetes
+
+The following DSpace maintenance tasks have been converted to Kubernetes CronJobs:
+
+| Job Name | Schedule | Description |
+|----------|----------|-------------|
+| `dspace-oai-import` | Daily at 23:00 | Import OAI metadata |
+| `dspace-index-discovery` | Daily at 00:00 | Rebuild search indexes |
+| `dspace-subscription-daily` | Daily at 03:01 | Send daily subscription emails |
+| `dspace-subscription-weekly` | Sundays at 03:02 | Send weekly subscription emails |
+| `dspace-subscription-monthly` | 1st of month at 03:03 | Send monthly subscription emails |
+| `dspace-cleanup` | 1st of month at 04:00 | Clean up old data |
+| `dspace-health-report` | Daily at 00:00 | Send health report email |
+
+## Important Notes
+
+- **Concurrency**: Jobs set to `Forbid` - won't run if previous job still running
+- **History**: Keeps last 3 successful and 3 failed jobs
+- **Timezone**: All times are in **UTC** (add 1 hour for CET, 2 for CEST)
+- **Restart**: Jobs will retry on failure (`restartPolicy: OnFailure`)
+
+## Deployment
+
+### 1. Apply the CronJobs
+
+```powershell
+$env:KUBECONFIG="kubeconfig.yaml"
+
+kubectl apply -f k8s/dspace-cronjobs.yaml -n clarin-dspace-ns
+# OR
+kubectl apply -k k8s
+```
+
+### 2. Verify CronJobs are Created
+
+```powershell
+kubectl get cronjobs -n clarin-dspace-ns
+```
+
+## Management
+
+### Manually Trigger a Job
+
+```powershell
+kubectl create job --from=cronjob/<CRONJOB-NAME> <JOB-RUN-NAME> -n clarin-dspace-ns
+```
+
+### View Job Status
+
+```powershell
+kubectl get jobs -n clarin-dspace-ns -w
+```
+
+## View Logs
+
+```powershell
+kubectl logs <POD_NAME> -n clarin-dspace-ns
+```
+
+### Suspend/Resume CronJobs
+
+```powershell
+# Suspend (stop scheduling)
+kubectl patch cronjob <CRONJOB-NAME> -n clarin-dspace-ns -p '{"spec":{"suspend":true}}'
+
+# Resume
+kubectl patch cronjob <CRONJOB-NAME> -n clarin-dspace-ns -p '{"spec":{"suspend":false}}'
+```
+
+### Describe CronJob
+```powershell
+kubectl describe cronjob <CRONJOB-NAME> -n clarin-dspace-ns
+```
+
+### Delete CronJobs
+
+```powershell
+# Delete specific CronJob
+kubectl delete cronjob <CRONJOB-NAME> -n clarin-dspace-ns
+
+# Delete all DSpace CronJobs
+kubectl delete -f k8s/dspace-cronjobs.yaml -n clarin-dspace-ns
+```
+
+## Troubleshooting
+
+### Access Logs
+
+```powershell
+kubectl logs -n clarin-dspace-ns -l app=dspace-backend -f
+kubectl logs -n clarin-dspace-ns -l app=dspace-angular -f
+kubectl logs -n clarin-dspace-ns -l app=dspace-solr-0 -f
+kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
+```
+
+### Common Issues
+
+1. Pod not starting:
+   ```powershell
+   kubectl describe pod -n clarin-dspace-ns <pod-name>
+   ```
+
+2. Database connection issues:
+   ```powershell
+   # Check CloudNativePG cluster status
+   kubectl get cluster.postgresql.cnpg.io -n clarin-dspace-ns
+   kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
+   ```
+
+3. Storage issues:
+   ```powershell
+   kubectl get pvc -n clarin-dspace-ns
+   kubectl describe pvc -n clarin-dspace-ns assetstore-pv-claim
+   ```
+
+4. Ingress issues:
+   ```powershell
+   kubectl describe ingress dspace-ingress -n clarin-dspace-ns
+   ```
+
+## Cleanup
+
+```powershell
+kubectl delete -f k8s/ -n clarin-dspace-ns
+# if needed delete the PVCs too (DATA WILL BE LOST !!!)
+kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
+```
+
+## Performance
+
+### Load Testing Results
+
+**Test Configuration:**
+- 8 Angular frontend replicas (1 core each)
+- 1 Backend replica (4 cores)
+- 1 Solr replica (2 cores)
+- 3 PostgreSQL replicas (4 cores each)
+- Database connection pool: 100 connections
+
+### Quick Load Test
+
+Using Apache Benchmark in Docker:
+
+```powershell
+# Test with 50 concurrent connections, 500 requests
+docker run --rm httpd:alpine ab -n 500 -c 50 https://hello-clarin-dspace.dyn.cloud.e-infra.cz/home
+
+# Test with 150 concurrent connections, 1000 requests
+docker run --rm httpd:alpine ab -n 1000 -c 150 https://hello-clarin-dspace.dyn.cloud.e-infra.cz/home
+```
+
+**Expected Results (50 concurrent):**
+- Requests per second: ~75 RPS
+- Mean response time: ~770ms
+- 99th percentile: ~1,500ms
+
+**Expected Results (150 concurrent):**
+- Requests per second: ~65 RPS
+- Mean response time: ~1,500ms
+- 99th percentile: ~4,500ms
