@@ -9,4 +9,4 @@ spec:
         - name: dspace
           env:
             - name: dspace__P__hostname
-              value: "ok-dspace.dyn.cloud.e-infra.cz"
+              value: "${NEW_HOST}"

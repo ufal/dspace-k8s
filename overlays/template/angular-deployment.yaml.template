@@ -9,4 +9,4 @@ spec:
         - name: dspace-angular
           env:
             - name: DSPACE_REST_HOST
-              value: "ok-dspace.dyn.cloud.e-infra.cz"
+              value: "${NEW_HOST}"
