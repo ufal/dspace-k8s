@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   - ../../k8s
 
-namespace: kosarko-ns   # <-- change to whatever you need
+namespace: ${NAMESPACE}   # <-- change to whatever you need
 
 # -------------------------------------------------------------------------
 # 3️⃣  Patches that change the public hostname
@@ -14,24 +14,22 @@ patches:
     target:
       kind: Deployment
       name: dspace-angular
+  # DSpace backend can read any property from the env
+  # but if this is getting too large consider overlaying local.cfg
   - path: backend-deployment.yaml
     target:
       kind: Deployment
       name: dspace-backend
-  - path: dspace-ingress.yaml
-    target:
+  - target:
       kind: Ingress
       name: dspace-ingress
-
-# -------------------------------------------------------------------------
-# 4️⃣  Optional: give the whole deployment a common label so you can
-#     select/delete it later with `kubectl -l app=my-dspace-dev`
-# -------------------------------------------------------------------------
-#commonLabels:
-#  app: my-dspace-dev
-# OK: I don't understand what's this supposed to do, yet
-#labels:
-#  - includeSelectors: true
-#    pairs:
-#      app: my-dspace-dev
-#
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "${NEW_HOST}"
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: "${SECRET_NAME}" #replace . with - and append -tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: "${NEW_HOST}"
