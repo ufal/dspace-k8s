@@ -22,16 +22,6 @@ patches:
     target:
       kind: Ingress
       name: dspace-ingress
-  - target:
-      kind: CronJob
-    patch: |-
-      - op: remove
-        path: /metadata/namespace
-  #- path: namespace.yaml        # makes sure any hard‑coded namespace in the
-  #  target:
-  #    kind: CronJob
-                          # CronJobs (they have `namespace:` set) is also
-                          # rewritten – see the file below.
 
 # -------------------------------------------------------------------------
 # 4️⃣  Optional: give the whole deployment a common label so you can
