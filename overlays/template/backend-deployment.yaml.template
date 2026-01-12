@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dspace-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: dspace
+          env:
+            - name: dspace__P__hostname
+              value: "${NEW_HOST}"

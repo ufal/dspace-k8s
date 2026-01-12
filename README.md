@@ -51,7 +51,32 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 - S3 settings in `k8s/dspace-configmap.yaml` (endpoint, bucket, region)
 - **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
 
-## Pre-Deployment Configuration
+## Pre-Deployment Configuration using overlays
+
+The repository ships with a small helper script **`init_overlay.sh`** that automates the creation of a Kustomize overlay from a set of `*.yaml.template` files located in `overlays/template`.
+
+#### Using the newly‑created overlay
+
+Once the overlay exists you can apply the whole stack with a single `kubectl apply -k` command, pointing at the overlay directory:
+
+```bash
+# Make sure your KUBECONFIG points to the Rancher cluster
+export KUBECONFIG=./kubeconfig.yaml    # or set it in your shell
+
+# Apply the overlay
+kubectl apply -k overlays/kosarko-ns
+```
+
+> **Tip:** The overlay directory name (`kosarko-ns` in the example) can be any name you prefer – just keep the path consistent with the one you passed to `init_overlay.sh`.
+
+#### When to re‑run the script
+
+If you need to change **only** the namespace, hostname, or TLS secret name you can simply re‑run `init_overlay.sh` with a **different overlay name** (e.g. `kosarko‑staging`).
+If you modify the original template files, delete the existing overlay directory (or rename it) and run the script again to regenerate fresh manifests.
+
+*The `init_overlay.sh` script is intentionally lightweight and has **no external dependencies** beyond Bash, `envsubst` (part of the GNU `gettext` package), and standard Unix utilities. It is safe to run on any POSIX‑compatible shell.*
+
+## Pre-Deployment Configuration (when not using overlays)
 
 **IMPORTANT: Review and update these files before deploying to production!**
 
@@ -170,6 +195,7 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 ### Manual
 ```powershell
 kubectl apply -k k8s/
+# or kubectl apply -k overlays/my-overlays
 # wait for a 5-8 minutes and verify deployment
 kubectl get pods -n clarin-dspace-ns
 kubectl get services -n clarin-dspace-ns
