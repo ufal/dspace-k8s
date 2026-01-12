@@ -5,7 +5,7 @@ metadata:
 spec:
   # PRODUCTION: 3 instances (1 primary + 2 replicas for HA)
   instances: 3
-  imageName: ghcr.io/cloudnative-pg/postgresql:13.22
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.11-system-bullseye
   
   # High Availability configuration
   minSyncReplicas: 1  # Ensure at least 1 replica is in sync (data safety)
