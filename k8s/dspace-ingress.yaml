@@ -3,6 +3,9 @@ kind: Ingress
 metadata:
   name: dspace-ingress
   annotations:
+    # Letsencrypt TLS
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
     # Enable proxy buffering off for SSE/long responses if needed
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     # Additional timeout settings for DSpace

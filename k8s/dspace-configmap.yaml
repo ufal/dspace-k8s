@@ -8,7 +8,7 @@ data:
     db.url = jdbc:postgresql://dspace-postgres-rw:5432/dspace
     db.username = dspace
     # db.password is read from environment variable POSTGRES_PASSWORD (set in deployment)
-    db.password = ${POSTGRES_PASSWORD}
+    db.password = ${env:POSTGRES_PASSWORD}
     # External hostname served by Ingress (TLS terminated at Ingress)
     dspace.hostname = hello-clarin-dspace.dyn.cloud.e-infra.cz
     # External-facing URLs should omit ports (Ingress terminates TLS on 443)
