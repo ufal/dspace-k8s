@@ -102,23 +102,28 @@ spec:
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
           readinessProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
+              # This should involve postgres/solr query
+              path: /server/api/core/communities
             initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
-            initialDelaySeconds: 240
+              # This IMO shouldn't involve DB/Solr
+              path: /server/api
+            initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
           startupProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
-            initialDelaySeconds: 180
+              path: /server/api
+            initialDelaySeconds: 35
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 20
