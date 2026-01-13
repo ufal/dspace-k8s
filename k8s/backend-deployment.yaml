@@ -35,7 +35,7 @@ spec:
             limits:
               cpu: 4
               memory: 4Gi
-          securityContext:
+          securityContext: &dspaceSecurityContext
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
@@ -133,11 +133,12 @@ spec:
           command: ['/bin/bash', '-c']
           args:
             - |-
-              until pg_isready -h dspace-postgres-rw; do
+              until pg_isready -h dspace-postgres-rw -U dspace; do
                 echo "Waiting for Postgres (dspace-postgres-rw:5432)  to be ready...";
                 sleep 2;
               done;
               echo "PostgreSQL is ready."
+          securityContext: *dspaceSecurityContext
         - name: wait-for-solr
           image: docker.io/curlimages/curl:latest
           command: [ "/bin/sh","-c" ]
@@ -147,12 +148,13 @@ spec:
                 sleep 2;
                 echo "Waiting for Solr (dspace-solr-service:8983) to accept connections...";
               done
+          securityContext: *dspaceSecurityContext
         - name: custom-namespace-setup
           image: docker.io/bash:latest
           env:
             - name: DSPACE_REST_NAMESPACE
               value: ""
-          command: ['/bin/bash', '-c']
+          command: ['/usr/local/bin/bash', '-c']
           args:
             - |-
               # Setup custom namespace symlink if DSPACE_REST_NAMESPACE is set
@@ -165,6 +167,7 @@ spec:
               else
                 echo "DSPACE_REST_NAMESPACE not set: Skipping custom namespace setup.";
               fi
+          securityContext: *dspaceSecurityContext
         - <<: *dspaceContainer
           name: dspace-db-migrations
           command: ['/bin/bash', '-c']
@@ -178,7 +181,8 @@ spec:
               done;
               echo "Running index-discovery (best-effort)...";
               /dspace/bin/dspace index-discovery -b || true;
-          # No need for probes in init container
+          # No need for probes and ports in init container
+          ports: []
           readinessProbe: null
           livenessProbe: null
           startupProbe: null
@@ -190,7 +194,8 @@ spec:
             - |-
               echo "Running index-discovery (best-effort)...";
               /dspace/bin/dspace index-discovery -b || true;
-          # No need for probes in init container
+          # No need for probes and ports in init container
+          ports: []
           readinessProbe: null
           livenessProbe: null
           startupProbe: null
@@ -207,7 +212,8 @@ spec:
               else
                 echo "DSPACE_AUTO_CREATE_ADMIN not set: Skipping auto admin creation.";
               fi
-          # No need for probes in init container
+          # No need for probes and ports in init container
+          ports: []
           readinessProbe: null
           livenessProbe: null
           startupProbe: null
