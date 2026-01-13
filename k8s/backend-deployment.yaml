@@ -24,7 +24,8 @@ spec:
           configMap:
             name: local-config-map
       containers:
-        - name: dspace
+        - &dspaceContainer
+          name: dspace
           image: dataquest/dspace:dspace-7_x
           imagePullPolicy: Always
           resources:
@@ -34,7 +35,7 @@ spec:
             limits:
               cpu: 4
               memory: 4Gi
-          securityContext:
+          securityContext: &dspaceSecurityContext
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
@@ -47,35 +48,10 @@ spec:
             - |
               # this causes the script to exit immediately if any command exits with a non-zero status
               set -e
-              echo "Waiting for Postgres (dspace-postgres-rw:5432) to accept connections...";
-              while ! (</dev/tcp/dspace-postgres-rw/5432) >/dev/null 2>&1; do sleep 2; done;
-              echo "Waiting for Solr (dspace-solr-service:8983) to accept connections...";
-              while ! (</dev/tcp/dspace-solr-service/8983) >/dev/null 2>&1; do sleep 2; done;
 
-              # Setup custom namespace symlink if DSPACE_REST_NAMESPACE is set
-              if [ -n "${DSPACE_REST_NAMESPACE}" ]; then
-                echo "Setting up custom namespace: ${DSPACE_REST_NAMESPACE}";
-                pushd /usr/local/tomcat/webapps && \
-                  (unlink server || true) && \
-                  (ln -s /dspace/webapps/server/ `echo -n "${DSPACE_REST_NAMESPACE}" | sed -e 's#^/##' -e 'sx/x#x'` || true) && \
-                  popd
-              fi
-
-              echo "Running database migrations (will retry)...";
-              i=0; until /dspace/bin/dspace database migrate force; do i=$((i+1)); echo "Migration failed (attempt $i), retrying in 10s"; sleep 10; done;
-              echo "Running index-discovery (best-effort)...";
-              /dspace/bin/dspace index-discovery -b || true;
-
-              # Auto-create admin user only if DSPACE_AUTO_CREATE_ADMIN=true (for testing only!)
-              if [ "${DSPACE_AUTO_CREATE_ADMIN:-false}" = "true" ]; then
-                echo "Creating default admin user...";
-                /dspace/bin/dspace create-administrator -e admin@admin.sk -f admin -l admin -p admin -c en || true
-              else
-                echo "DSPACE_AUTO_CREATE_ADMIN not set: Skipping auto admin creation.";
-              fi
-
-              echo "Starting Handle Server...";
-              /dspace/bin/start-handle-server || true
+              # TODO see https://github.com/ufal/dspace-k8s/issues/25
+              # echo "Starting Handle Server...";
+              # /dspace/bin/start-handle-server || true
 
               echo "Starting Tomcat";
               ./custom_run.sh
@@ -126,23 +102,118 @@ spec:
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
           readinessProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
+              # This should involve postgres/solr query
+              path: /server/api/core/communities
             initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
-            initialDelaySeconds: 240
+              # This IMO shouldn't involve DB/Solr
+              path: /server/api
+            initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
           startupProbe:
-            tcpSocket:
+            httpGet:
               port: 8080
-            initialDelaySeconds: 180
+              path: /server/api
+            initialDelaySeconds: 35
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 20
+      initContainers:
+        - name: wait-for-postgres
+          image: ghcr.io/cloudnative-pg/postgresql:16.11-system-bullseye
+          command: ['/bin/bash', '-c']
+          args:
+            - |-
+              until pg_isready -h dspace-postgres-rw -U dspace; do
+                echo "Waiting for Postgres (dspace-postgres-rw:5432)  to be ready...";
+                sleep 2;
+              done;
+              echo "PostgreSQL is ready."
+          securityContext: *dspaceSecurityContext
+        - name: wait-for-solr
+          image: docker.io/curlimages/curl:latest
+          command: [ "/bin/sh","-c" ]
+          args:
+            - |-
+              while [ $(curl -sw '%{http_code}' http://dspace-solr-service:8983/solr/admin/info/system -o /dev/null) -ne 200 ]; do
+                sleep 2;
+                echo "Waiting for Solr (dspace-solr-service:8983) to accept connections...";
+              done
+          securityContext: *dspaceSecurityContext
+        - name: custom-namespace-setup
+          image: docker.io/bash:latest
+          env:
+            - name: DSPACE_REST_NAMESPACE
+              value: ""
+          command: ['/usr/local/bin/bash', '-c']
+          args:
+            - |-
+              # Setup custom namespace symlink if DSPACE_REST_NAMESPACE is set
+              if [ -n "${DSPACE_REST_NAMESPACE}" ]; then
+                echo "Setting up custom namespace: ${DSPACE_REST_NAMESPACE}";
+                pushd /usr/local/tomcat/webapps && \
+                  (unlink server || true) && \
+                  (ln -s /dspace/webapps/server/ `echo -n "${DSPACE_REST_NAMESPACE}" | sed -e 's#^/##' -e 'sx/x#x'` || true) && \
+                  popd
+              else
+                echo "DSPACE_REST_NAMESPACE not set: Skipping custom namespace setup.";
+              fi
+          securityContext: *dspaceSecurityContext
+        - <<: *dspaceContainer
+          name: dspace-db-migrations
+          command: ['/bin/bash', '-c']
+          args:
+            - |-
+              echo "Running database migrations (will retry)...";
+              i=0; until /dspace/bin/dspace database migrate force; do
+                i=$((i+1));
+                echo "Migration failed (attempt $i), retrying in 10s";
+                sleep 10;
+              done;
+              echo "Running index-discovery (best-effort)...";
+              /dspace/bin/dspace index-discovery -b || true;
+          # No need for probes and ports in init container
+          ports: []
+          readinessProbe: null
+          livenessProbe: null
+          startupProbe: null
+        - <<: *dspaceContainer
+          # TODO: we don't want this in production
+          name: dspace-index-discovery
+          command: ['/bin/bash', '-c']
+          args:
+            - |-
+              echo "Running index-discovery (best-effort)...";
+              /dspace/bin/dspace index-discovery -b || true;
+          # No need for probes and ports in init container
+          ports: []
+          readinessProbe: null
+          livenessProbe: null
+          startupProbe: null
+        - <<: *dspaceContainer
+          # TODO secrets and only if not already created
+          name: dspace-create-admin
+          command: ['/bin/bash', '-c']
+          args:
+            - |-
+              # Auto-create admin user only if DSPACE_AUTO_CREATE_ADMIN=true (for testing only!)
+              if [ "${DSPACE_AUTO_CREATE_ADMIN:-false}" = "true" ]; then
+                echo "Creating default admin user...";
+                /dspace/bin/dspace create-administrator -e admin@admin.sk -f admin -l admin -p admin -c en || true
+              else
+                echo "DSPACE_AUTO_CREATE_ADMIN not set: Skipping auto admin creation.";
+              fi
+          # No need for probes and ports in init container
+          ports: []
+          readinessProbe: null
+          livenessProbe: null
+          startupProbe: null
