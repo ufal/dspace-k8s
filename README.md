@@ -47,8 +47,45 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 | **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored in S3 |
 
 **S3 Configuration:**
-- Credentials stored in `k8s/s3-assetstore-secret.yaml`
-- S3 settings in `k8s/dspace-configmap.yaml` (endpoint, bucket, region)
+- Credentials example `k8s/secrets.yaml` below (this file is gitignored by default — do NOT commit real secrets).
+- S3 settings in `k8s/dspace-configmap.yaml` - `local.cfg` (reads endpoint, bucket, region from the env)
+- Sealing secrets: create a safe-to-commit sealed secret from `k8s/secrets.yaml`:
+
+```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s3-assetstore-secret
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "YOUR_ACCESS_KEY"
+  AWS_SECRET_ACCESS_KEY: "YOUR_SECRET_KEY"
+  S3_ENDPOINT: "https://s3.cl4.du.cesnet.cz"
+  S3_BUCKET_NAME: "testbucket"
+  S3_REGION: "eu-central-1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dspace-postgres-superuser
+type: kubernetes.io/basic-auth
+stringData:
+  # Change password before deploying to production!
+  username: "dspace"
+  password: "PASSWORD"
+```
+
+```bash
+pushd k8s
+# you need to specify the correct namespace so the secreat can be unsealed, but to work with overlays don't keep the namespace in the yaml
+kubeseal --controller-namespace sealed-secrets-operator --namespace clarin-dspace-ns --format yaml < secrets.yaml | grep -v namespace > sealed-secrets.yaml
+# or
+# kubeseal --controller-namespace sealed-secrets-operator --namespace $(sed -ne 's/^namespace:\s*//p' kustomization.yaml) --format yaml < secrets.yaml | grep -v namespace > sealed-secrets.yaml
+popd
+```
+
+Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/sealed-secrets.yaml` or `kubectl apply -k k8s` (the controller will decrypt it in-cluster).
 - **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
 
 ## Pre-Deployment Configuration using overlays
@@ -88,22 +125,13 @@ If you modify the original template files, delete the existing overlay directory
        token: YOUR_RANCHER_TOKEN_HERE
    ```
 
-### 2. **Database Credentials** - `k8s/postgres-cnpg-secret.yaml`
-   ```yaml
-   stringData:
-     username: dspace
-     password: YOUR_PASSWORD_HERE
-   ```
+### 2. **Database Credentials**
 
-### 3. **S3 Storage Credentials** - `k8s/s3-assetstore-secret.yaml`
-   ```yaml
-   stringData:
-     AWS_ACCESS_KEY_ID: "YOUR_ACCESS_KEY"
-     AWS_SECRET_ACCESS_KEY: "YOUR_SECRET_KEY"
-     S3_ENDPOINT: "https://s3.cl4.du.cesnet.cz"
-     S3_BUCKET_NAME: "testbucket"
-     S3_REGION: "eu-central-1"
-   ```
+see `sealed-secrets.yaml` above
+
+### 3. **S3 Storage Credentials**
+
+see `sealed-secrets.yaml` above
 
 ### 4. **Domain/Hostname Configuration** - `k8s/dspace-ingress.yaml`
    ```yaml
