@@ -1,0 +1,3 @@
+# Ignore secrets.yaml anywhere in the repository
+# Matches any file named `secrets.yaml` in any directory
+secrets.yaml

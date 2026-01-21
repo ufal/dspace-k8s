@@ -7,7 +7,6 @@ namespace: clarin-dspace-ns
 resources:
   - assets-pvc.yaml
   - solr-pvc.yaml
-  - postgres-cnpg-secret.yaml
   - postgres-cnpg-cluster.yaml
   - solr-service.yaml
   - solr-statefulset.yaml
@@ -17,5 +16,5 @@ resources:
   - angular-service.yaml
   - angular-deployment.yaml
   - dspace-ingress.yaml
-  - s3-assetstore-secret.yaml
   - dspace-cronjobs.yaml
+  - sealed-secrets.yaml

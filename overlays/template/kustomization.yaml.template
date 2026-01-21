@@ -10,6 +10,7 @@ namespace: ${NAMESPACE}   # <-- change to whatever you need
 # 3️⃣  Patches that change the public hostname
 # -------------------------------------------------------------------------
 patches:
+  - path: sealed-secrets.yaml
   - path: angular-deployment.yaml
     target:
       kind: Deployment
