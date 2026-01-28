@@ -29,9 +29,12 @@ data:
     proxies.trusted.ipranges = 10.42.0.0/16
 
     #### S3 Assetstore Configuration ####
+    # S3-ONLY configuration: No local assetstore, no synchronization
+    # All bitstreams are stored exclusively in S3 object storage
+    # See: https://github.com/ufal/clarin-dspace/wiki/S3-Storage-Integration
+    # For S3 secrets setup, see: https://github.com/ufal/dspace-k8s/issues/23
 
-    # Enable S3 assetstore as Store 1 (primary)
-    assetstore.dir = /dspace/assetstore
+    # S3 assetstore as Store 1 (primary and only storage)
     assetstore.index.primary = 1
 
     # S3 Assetstore Configuration (Store 1)
@@ -52,6 +55,14 @@ data:
 
     # Enable path-style access (required for CESNET S3 and other S3-compatible services)
     assetstore.s3.pathStyleAccessEnabled = true
+
+    # Disable local/S3 synchronization - store ONLY in S3
+    # When false, new uploads go only to the primary store (S3)
+    sync.storage.service.enabled = false
+
+    # Enable direct S3 download via presigned URLs for better performance
+    # Downloads will use presigned URLs, allowing clients to fetch directly from S3
+    s3.download.direct.enabled = true
 
     # Database connection pool tuning
     # Increase from default 10-20 to support more concurrent users

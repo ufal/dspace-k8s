@@ -86,7 +86,6 @@ popd
 ```
 
 Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/sealed-secrets.yaml` or `kubectl apply -k k8s` (the controller will decrypt it in-cluster).
-- **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
 
 ## Pre-Deployment Configuration using overlays
 
