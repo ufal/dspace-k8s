@@ -34,10 +34,10 @@ spec:
               - /dspace/bin/dspace index-discovery -b
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -90,10 +90,10 @@ spec:
               - /dspace/bin/dspace health-report -e YOUR.EMAIL@DOMAIN.COM
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -146,10 +146,10 @@ spec:
               - /dspace/bin/dspace oai import
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -202,10 +202,10 @@ spec:
               - /dspace/bin/dspace subscription-send -f D
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -258,10 +258,10 @@ spec:
               - /dspace/bin/dspace subscription-send -f W
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -314,10 +314,10 @@ spec:
               - /dspace/bin/dspace subscription-send -f M
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
@@ -370,10 +370,10 @@ spec:
               - /dspace/bin/dspace cleanup
             resources:
               requests:
-                cpu: 500m
+                cpu: 1000m
                 memory: 1Gi
               limits:
-                cpu: 1
+                cpu: 2
                 memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
