@@ -86,10 +86,22 @@ spec:
   failoverDelay: 10  # Wait 10s before failover when primary fails (recommended for production)
   switchoverDelay: 60  # Wait 60s before planned switchover (allow connections to drain)
   
-  # Backup configuration using S3-compatible storage
+  # ========================================================================
+  # Backup Configuration
+  # ========================================================================
+  # Automated backups to S3-compatible storage using Barman
+  # - Daily scheduled backups at 2:00 AM UTC (see postgres-scheduled-backup.yaml)
+  # - Continuous WAL archiving for point-in-time recovery
+  # - 30-day retention policy
+  # 
+  # IMPORTANT: Ensure S3 credentials have write permissions to backup path
+  # Default path: s3://dspace-backups/postgresql/
+  # You may want to customize the bucket name and path for your deployment
   backup:
     barmanObjectStore:
+      # S3 backup destination - CHANGE bucket name as needed
       destinationPath: s3://dspace-backups/postgresql/
+      # S3 credentials - reuses the same secret as DSpace asset store
       s3Credentials:
         accessKeyId:
           name: s3-assetstore-secret
@@ -100,11 +112,15 @@ spec:
         region:
           name: s3-assetstore-secret
           key: S3_REGION
+      # S3 endpoint - should match your S3 provider
       endpointURL: https://s3.cl4.du.cesnet.cz
+      # WAL (Write-Ahead Log) archiving configuration
       wal:
-        compression: gzip
-        maxParallel: 8
+        compression: gzip      # Compress WAL files to save space
+        maxParallel: 8         # Parallel uploads for better performance
+      # Data backup configuration
       data:
-        compression: gzip
-        jobs: 2
-    retentionPolicy: "30d"  # Keep backups for 30 days
+        compression: gzip      # Compress backup files
+        jobs: 2                # Parallel backup jobs
+    # Retention policy - keep backups for 30 days
+    retentionPolicy: "30d"
