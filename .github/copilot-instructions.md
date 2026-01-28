@@ -66,17 +66,17 @@ This repository contains Kubernetes manifests for deploying DSpace 7 (an open-so
 Before making changes, validate the Kubernetes manifests:
 
 ```bash
-# Validate main k8s directory
+# Validate main k8s directory (NO cluster connectivity required)
 kubectl kustomize k8s/
 
-# Validate specific overlay
+# Validate specific overlay (NO cluster connectivity required)
 kubectl kustomize overlays/<overlay-name>/
 
-# Dry-run apply (does not create resources)
-kubectl apply -k k8s/ --dry-run=client
+# Dry-run apply (REQUIRES cluster connectivity, use --validate=false if no cluster)
+kubectl apply -k k8s/ --dry-run=client --validate=false
 ```
 
-**Important:** These commands do NOT require cluster connectivity and should ALWAYS succeed. If they fail, you have a YAML syntax error or invalid Kustomize configuration.
+**Important:** `kubectl kustomize` does NOT require cluster connectivity and should ALWAYS succeed. If it fails, you have a YAML syntax error or invalid Kustomize configuration. The `--dry-run=client` command requires cluster access for full validation, but can be run with `--validate=false` to skip API validation.
 
 ### Creating a New Overlay (Multi-Environment Support)
 
@@ -305,7 +305,7 @@ kubectl describe ingress dspace-ingress -n clarin-dspace-ns
 
 1. **No CI/CD:** This repository has NO GitHub Actions, NO automated tests, NO linting. You cannot run automated validations.
 
-2. **Validation Strategy:** ALWAYS run `kubectl kustomize k8s/` or `kubectl apply --dry-run=client -k k8s/` to validate YAML syntax before committing.
+2. **Validation Strategy:** ALWAYS run `kubectl kustomize k8s/` to validate YAML syntax before committing. This command requires NO cluster access.
 
 3. **Namespace is hardcoded:** The default namespace `clarin-dspace-ns` appears in many places (README examples, deploy.bat). When creating new environments, use overlays instead of editing base files.
 
