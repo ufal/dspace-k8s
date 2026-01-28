@@ -449,7 +449,8 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
 3. Storage issues:
    ```powershell
    kubectl get pvc -n clarin-dspace-ns
-   kubectl describe pvc -n clarin-dspace-ns assetstore-pv-claim
+   # Note: No assetstore PVC in S3-only configuration
+   kubectl describe pvc -n clarin-dspace-ns solr-data-pvc
    ```
 
 4. Ingress issues:
@@ -462,7 +463,8 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
 ```powershell
 kubectl delete -f k8s/ -n clarin-dspace-ns
 # if needed delete the PVCs too (DATA WILL BE LOST !!!)
-kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
+# Note: No assetstore-pv-claim in S3-only configuration
+kubectl delete pvc dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
 ```
 
 ## Performance
