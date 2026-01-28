@@ -20,6 +20,9 @@ spec:
         - name: assetstore
           persistentVolumeClaim:
             claimName: assetstore-pv-claim
+        - name: dspace-logs
+          persistentVolumeClaim:
+            claimName: dspace-logs-pv-claim
         - name: local-config
           configMap:
             name: local-config-map
@@ -98,6 +101,8 @@ spec:
           volumeMounts:
             - name: assetstore
               mountPath: /dspace/assetstore
+            - name: dspace-logs
+              mountPath: /dspace/log
             - name: local-config
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
