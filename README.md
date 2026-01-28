@@ -94,27 +94,24 @@ Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/se
 
 Resource limits and requests have been calibrated based on production metrics (docker stats after 2 weeks of uptime). All main workload CPU requests are set to ≥1000m as recommended.
 
-| Component | CPU Request | CPU Limit | Memory Request | Memory Limit | Notes |
-|-----------|------------|-----------|----------------|--------------|-------|
-| **Angular Frontend** | 1000m | 2 | 4Gi | 8Gi | pm2 runs 7 instances; actual prod usage ~6.3GiB |
-| **Backend API** | 1000m | 2 | 3Gi | 6Gi | Actual prod usage ~4.76GiB |
-| **Solr** | 1000m | 2 | 2Gi | 4Gi | Actual prod usage ~3.75GiB |
-| **PostgreSQL** (per instance) | 500m | 2000m | 512Mi | 2Gi | Very light CPU usage (<0.01%), ~247MiB actual |
-| **CronJobs** (all 7) | 1000m | 2 | 1Gi | 2Gi | Batch maintenance tasks |
+| Component                     | CPU Request | CPU Limit | Memory Request | Memory Limit | Notes                                                                                       |
+|-------------------------------|-------------|-----------|----------------|--------------|---------------------------------------------------------------------------------------------|
+| **Angular Frontend**          | 1           | 2         | 4Gi            | 8Gi          | pm2 runs 7 instances; actual prod usage ~6.3GiB                                             |
+| **Backend API**               | 1           | 4         | 3Gi            | 6Gi          | Actual prod usage ~4.76GiB                                                                  |
+| **Solr**                      | 1           | 2         | 2Gi            | 4Gi          | Actual prod usage ~3.75GiB                                                                  |
+| **PostgreSQL** (per instance) | 1           | 4         | 1Gi            | 4Gi          | |
+| **CronJobs** (all 7)          | 1           | 2         | 1Gi            | 2Gi          | Batch maintenance tasks (run periodically)                                                  |
 
-**Total Resource Requirements:**
-- **CPU Requests:** ~4.5 CPU cores (3000m main workloads + 1500m postgres 3 instances)
-- **CPU Limits:** ~12 CPU cores (6 main workloads + 6000m postgres 3 instances)
-- **Memory Requests:** ~10.5Gi (9Gi main + 1536Mi postgres)
-- **Memory Limits:** ~24Gi (18Gi main workloads + 6Gi postgres)
+**Total Resource Requirements (approx, live components + DB instances):**
+- **CPU Requests:** ~6 CPU cores (3000m main workloads + 3000m for 3 PostgreSQL instances)
+- **CPU Limits:** ~20 CPU cores (8 main workloads + 12 for PostgreSQL replicas)
+- **Memory Requests:** ~12Gi (9Gi main workloads + 3Gi for PostgreSQL instances)
+- **Memory Limits:** ~30Gi (18Gi main workloads + 12Gi for PostgreSQL instances)
 
 **Notes:**
 - Limits must sum to less than namespace/project quota
-- PostgreSQL runs 3 instances (1 primary + 2 replicas) for high availability
-- CronJobs run maintenance tasks (index-discovery, health-report, OAI import, subscriptions, cleanup) and use 1000m CPU request for adequate performance
-- Backend CPU limit reduced from 4→2 based on low production usage (0.21% CPU)
-- Angular memory limit increased significantly (2Gi→8Gi) to handle pm2's 7 instances safely
-- Resource values based on production observability (issue #2)
+- PostgreSQL runs 3 instances (1 primary + 2 replicas for HA); resource settings are per-instance
+- CronJobs run maintenance tasks (index-discovery, health-report, OAI import, subscriptions, cleanup) and use 1000m CPU request and 1Gi memory request
 
 
 ## Pre-Deployment Configuration using overlays
