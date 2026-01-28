@@ -85,3 +85,26 @@ spec:
   
   failoverDelay: 10  # Wait 10s before failover when primary fails (recommended for production)
   switchoverDelay: 60  # Wait 60s before planned switchover (allow connections to drain)
+  
+  # Backup configuration using S3-compatible storage
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://dspace-backups/postgresql/
+      s3Credentials:
+        accessKeyId:
+          name: s3-assetstore-secret
+          key: AWS_ACCESS_KEY_ID
+        secretAccessKey:
+          name: s3-assetstore-secret
+          key: AWS_SECRET_ACCESS_KEY
+        region:
+          name: s3-assetstore-secret
+          key: S3_REGION
+      endpointURL: https://s3.cl4.du.cesnet.cz
+      wal:
+        compression: gzip
+        maxParallel: 8
+      data:
+        compression: gzip
+        jobs: 2
+    retentionPolicy: "30d"  # Keep backups for 30 days

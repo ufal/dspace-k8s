@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: dspace-postgres-daily-backup
+spec:
+  # Daily backup at 2:00 AM UTC
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: dspace-postgres
+  # Take an immediate backup on creation (useful for testing)
+  immediate: true

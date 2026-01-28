@@ -42,6 +42,7 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 | Component | Storage Class | Size | Reason |
 |-----------|--------------|------|--------|
 | **PostgreSQL** | `csi-ceph-rbd-du` | 20Gi | Fast block storage for database operations |
+| **PostgreSQL Backups** | **S3 Storage** | Unlimited | Automated daily backups with 30-day retention |
 | **Solr** | `csi-ceph-rbd-du` | 5Gi | Better performance for search indexing |
 | **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored exclusively in S3 (no local assetstore) |
 
@@ -365,6 +366,104 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
 # Connect to database
 kubectl exec -it dspace-postgres-1 -n clarin-dspace-ns -- psql -U postgres -d dspace
 ```
+
+### PostgreSQL Backups
+
+The PostgreSQL database is configured with automated backups to S3-compatible storage using CloudNativePG's built-in backup functionality.
+
+**Backup Configuration:**
+- **Storage:** S3-compatible object storage (same S3 endpoint used for DSpace assets)
+- **Schedule:** Daily at 2:00 AM UTC
+- **Retention:** 30 days
+- **Compression:** gzip (both WAL and data)
+- **Location:** `s3://dspace-backups/postgresql/`
+
+**Verify Backup Status:**
+```powershell
+# List all backups
+kubectl get backup -n clarin-dspace-ns
+
+# Check scheduled backup status
+kubectl get scheduledbackup -n clarin-dspace-ns
+
+# View backup details
+kubectl describe backup <backup-name> -n clarin-dspace-ns
+
+# Check cluster backup status
+kubectl get cluster dspace-postgres -n clarin-dspace-ns -o jsonpath='{.status.lastSuccessfulBackup}'
+```
+
+**Manual Backup:**
+```powershell
+# Trigger an immediate backup
+kubectl cnpg backup dspace-postgres -n clarin-dspace-ns
+
+# Or create a Backup resource manually
+kubectl apply -f - <<EOF
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: dspace-postgres-manual-backup
+  namespace: clarin-dspace-ns
+spec:
+  cluster:
+    name: dspace-postgres
+EOF
+```
+
+**Restore from Backup:**
+
+To restore from a backup, you need to create a new cluster with bootstrap recovery configuration:
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: dspace-postgres-restored
+spec:
+  instances: 3
+  
+  bootstrap:
+    recovery:
+      source: dspace-postgres
+      
+  externalClusters:
+    - name: dspace-postgres
+      barmanObjectStore:
+        destinationPath: s3://dspace-backups/postgresql/
+        s3Credentials:
+          accessKeyId:
+            name: s3-assetstore-secret
+            key: AWS_ACCESS_KEY_ID
+          secretAccessKey:
+            name: s3-assetstore-secret
+            key: AWS_SECRET_ACCESS_KEY
+          region:
+            name: s3-assetstore-secret
+            key: S3_REGION
+        endpointURL: https://s3.cl4.du.cesnet.cz
+        wal:
+          compression: gzip
+```
+
+**Point-in-Time Recovery (PITR):**
+
+CloudNativePG supports point-in-time recovery using WAL archives:
+
+```yaml
+bootstrap:
+  recovery:
+    source: dspace-postgres
+    recoveryTarget:
+      targetTime: "2024-01-15 10:00:00.00000+00"
+```
+
+**Important Notes:**
+- Backups include both base backups and continuous WAL archiving
+- WAL files are compressed and continuously archived to S3
+- The S3 bucket path must be accessible and have sufficient space
+- Ensure S3 credentials in `s3-assetstore-secret` have write permissions to the backup destination
+- For production, consider using a separate S3 bucket for backups with appropriate lifecycle policies
 
 ## Updates
 
