@@ -4,7 +4,7 @@
 
 **Purpose:** Kubernetes manifests for deploying DSpace 7 (digital repository platform) on Rancher Cloud  
 **Type:** Infrastructure as Code (Kubernetes/Kustomize)  
-**Size:** 15 YAML files, 2 scripts  
+**Size:** 14 YAML files, 2 scripts  
 **Tools:** kubectl v1.35+, kustomize v5.7+, envsubst (GNU gettext), bash  
 **CI/CD:** NONE - No GitHub Actions, no automated tests, no linting  
 
@@ -83,7 +83,7 @@ Must update for new deployments (or use init_overlay.sh):
 2. **k8s/dspace-ingress.yaml**: hostname, TLS secretName  
 3. **k8s/dspace-configmap.yaml**: `dspace.hostname`, `rest.host`, `proxies.trusted.ipranges`
 4. **k8s/sealed-secrets.yaml**: S3 credentials, DB password (use kubeseal)
-5. **k8s/dspace-cronjobs.yaml**: Admin email ~line 92
+5. **k8s/dspace-cronjobs.yaml**: Admin email line 90
 6. **k8s/backend-deployment.yaml**: `DSPACE_AUTO_CREATE_ADMIN="false"` for production
 
 ## Critical Issues & Workarounds
@@ -99,7 +99,7 @@ Must update for new deployments (or use init_overlay.sh):
      -e your@email.com -f First -l Last -p SecurePass -c en
    ```
 
-**3. DB Connection Pool** (configmap:58)  
+**3. DB Connection Pool** (dspace-configmap.yaml:58)  
    `db.maxconnections=100` < PostgreSQL `max_connections=300` (postgres-cnpg-cluster.yaml)
 
 **4. Solr Volume Permissions** (solr-statefulset.yaml:19-21)  
@@ -149,7 +149,7 @@ kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc -n <ns>
 2. **Namespace hardcoded** - Use overlays, don't edit base k8s/ files.
 3. **No local run** - Pure Kubernetes config, cannot run without cluster.
 4. **Secrets gitignored** - Never commit secrets.yaml, only sealed-secrets.yaml.
-5. **Windows scripts** - deploy.bat is PowerShell. Linux: use kubectl commands.
+5. **Windows scripts** - deploy.bat is Windows Batch (.bat). Linux: use kubectl commands.
 6. **Images external** - dataquest/dspace:dspace-7_x not in this repo.
 7. **Deployment time** - Backend takes 5-8 min (DB init). Frontend 1-2 min.
 8. **Trust instructions** - No build scripts, test frameworks, or CI exist here.
