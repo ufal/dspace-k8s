@@ -36,10 +36,10 @@ spec:
   resources:
     requests:
       memory: "1Gi"
-      cpu: "1000m"
+      cpu: "1"
     limits:
       memory: "4Gi"
-      cpu: "4000m"
+      cpu: "4"
   
   # PostgreSQL configuration optimized for DSpace production
   postgresql:
