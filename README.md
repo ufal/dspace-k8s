@@ -88,6 +88,33 @@ popd
 Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/sealed-secrets.yaml` or `kubectl apply -k k8s` (the controller will decrypt it in-cluster).
 - **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
 
+### **Resource Requirements**
+
+**Production-Tuned CPU and Memory Configuration:**
+
+Resource limits and requests have been calibrated based on production metrics (docker stats after 2 weeks of uptime). All main workload CPU requests are set to ≥1000m as recommended.
+
+| Component | CPU Request | CPU Limit | Memory Request | Memory Limit | Notes |
+|-----------|------------|-----------|----------------|--------------|-------|
+| **Angular Frontend** | 1000m | 2 | 4Gi | 8Gi | pm2 runs 7 instances; actual prod usage ~6.3GiB |
+| **Backend API** | 1000m | 2 | 3Gi | 6Gi | Actual prod usage ~4.76GiB |
+| **Solr** | 1000m | 2 | 2Gi | 4Gi | Actual prod usage ~3.75GiB |
+| **PostgreSQL** (per instance) | 500m | 2000m | 512Mi | 2Gi | Very light CPU usage (<0.01%), ~247MiB actual |
+| **CronJobs** (all 7) | 1000m | 2 | 1Gi | 2Gi | Batch maintenance tasks |
+
+**Total Resource Requirements:**
+- **CPU Requests:** ~4.5 CPU cores (4000m main + 500m postgres)
+- **CPU Limits:** ~10 CPU cores (with postgres 3-instance HA)
+- **Memory Requests:** ~9.5Gi
+- **Memory Limits:** ~20Gi (main workloads)
+
+**Notes:**
+- Limits must sum to less than namespace/project quota
+- PostgreSQL runs 3 instances (1 primary + 2 replicas) for high availability
+- CronJobs run maintenance tasks (index-discovery, health-report, OAI import, subscriptions, cleanup)
+- Resource values based on production observability (issue #2)
+
+
 ## Pre-Deployment Configuration using overlays
 
 The repository ships with a small helper script **`init_overlay.sh`** that automates the creation of a Kustomize overlay from a set of `*.yaml.template` files located in `overlays/template`.
