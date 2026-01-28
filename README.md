@@ -402,11 +402,19 @@ kubectl get cluster dspace-postgres -n clarin-dspace-ns -o jsonpath='{.status.la
 
 **Manual Backup:**
 ```powershell
-# Trigger an immediate backup
+# Trigger an immediate backup using kubectl cnpg plugin
 kubectl cnpg backup dspace-postgres -n clarin-dspace-ns
+```
 
-# Or create a Backup resource manually
-kubectl apply -f - <<EOF
+Alternatively, create a Backup resource from a YAML file:
+
+```powershell
+# Create backup.yaml file first, then apply it
+kubectl apply -f backup.yaml
+```
+
+Example `backup.yaml`:
+```yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Backup
 metadata:
@@ -415,7 +423,6 @@ metadata:
 spec:
   cluster:
     name: dspace-postgres
-EOF
 ```
 
 **Restore from Backup:**
