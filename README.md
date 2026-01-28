@@ -89,6 +89,13 @@ popd
 Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/sealed-secrets.yaml` or `kubectl apply -k k8s` (the controller will decrypt it in-cluster).
 - **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
 
+**S3 Bucket Requirements for PostgreSQL Backups:**
+- The S3 credentials must have read/write permissions to the backup destination path
+- PostgreSQL backups are stored at: `s3://dspace-backups/postgresql/` (configurable in `k8s/postgres-cnpg-cluster.yaml`)
+- You can use the same S3 endpoint and credentials as the asset store, or configure a separate bucket for backups
+- Ensure the backup bucket has adequate retention policies and versioning if required
+- Recommended: Use a separate S3 bucket or path for database backups to isolate them from application data
+
 ### **Resource Requirements**
 
 **Production-Tuned CPU and Memory Configuration:**
