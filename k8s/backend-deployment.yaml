@@ -17,9 +17,7 @@ spec:
       securityContext:
         fsGroup: 1100
       volumes:
-        - name: assetstore
-          persistentVolumeClaim:
-            claimName: assetstore-pv-claim
+        # No local assetstore volume - using S3-only storage
         - name: local-config
           configMap:
             name: local-config-map
@@ -96,8 +94,7 @@ spec:
                   name: s3-assetstore-secret
                   key: S3_BUCKET_NAME
           volumeMounts:
-            - name: assetstore
-              mountPath: /dspace/assetstore
+            # No local assetstore mount - using S3-only storage
             - name: local-config
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
