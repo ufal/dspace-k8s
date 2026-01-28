@@ -44,7 +44,14 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 | **PostgreSQL** | `csi-ceph-rbd-du` | 20Gi | Fast block storage for database operations |
 | **Solr** | `csi-ceph-rbd-du` | 5Gi | Better performance for search indexing |
 | **Assets** | `nfs-csi` | 5Gi | Good for large files, supports multi-pod access |
+| **Logs** | `nfs-csi` | 10Gi | Persistent log storage, supports multi-pod access |
 | **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored in S3 |
+
+**Log Management:**
+- DSpace logs are stored in a persistent volume at `/dspace/log`
+- Logs are automatically backed up to S3 daily at 2:00 AM UTC via the `dspace-logs-backup` CronJob
+- Backups are stored with timestamp-based prefixes in S3: `dspace-logs-backup/YYYY-MM-DD_HH-MM-SS/`
+- Optional: Automatic cleanup of old log files can be enabled in `k8s/logs-backup-cronjob.yaml`
 
 **S3 Configuration:**
 - Credentials example `k8s/secrets.yaml` below (this file is gitignored by default — do NOT commit real secrets).
@@ -359,11 +366,47 @@ The following DSpace maintenance tasks have been converted to Kubernetes CronJob
 |----------|----------|-------------|
 | `dspace-oai-import` | Daily at 23:00 | Import OAI metadata |
 | `dspace-index-discovery` | Daily at 00:00 | Rebuild search indexes |
+| `dspace-logs-backup` | Daily at 02:00 | Backup logs to S3 storage |
 | `dspace-subscription-daily` | Daily at 03:01 | Send daily subscription emails |
 | `dspace-subscription-weekly` | Sundays at 03:02 | Send weekly subscription emails |
 | `dspace-subscription-monthly` | 1st of month at 03:03 | Send monthly subscription emails |
 | `dspace-cleanup` | 1st of month at 04:00 | Clean up old data |
 | `dspace-health-report` | Daily at 00:00 | Send health report email |
+
+### Log Backup Configuration
+
+The `dspace-logs-backup` CronJob automatically backs up DSpace application logs to S3 storage:
+
+**Features:**
+- Backs up all logs from `/dspace/log` directory
+- Creates timestamped backups: `dspace-logs-backup/YYYY-MM-DD_HH-MM-SS/`
+- Excludes temporary files (`*.tmp`) and hidden files
+- Uses same S3 credentials as DSpace assetstore
+- Optional automatic cleanup of old log files (disabled by default)
+
+**Configuration:**
+- Schedule: Daily at 2:00 AM UTC
+- S3 credentials: Uses `s3-assetstore-secret` (same as main DSpace S3 config)
+- Resource limits: 500m CPU / 256Mi memory (request), 1 CPU / 512Mi memory (limit)
+
+**Enable Automatic Log Cleanup:**
+
+To automatically delete local log files older than 7 days after successful backup, edit `k8s/logs-backup-cronjob.yaml` and uncomment these lines:
+
+```yaml
+# echo "Cleaning up old log files (older than 7 days)..."
+# find /dspace/log -type f -name "*.log*" -mtime +7 -delete
+# echo "Cleanup completed"
+```
+
+**View Log Backup Status:**
+```powershell
+# Check recent log backup jobs
+kubectl get jobs -n clarin-dspace-ns -l job-name=dspace-logs-backup
+
+# View logs from the most recent backup
+kubectl logs -n clarin-dspace-ns job/dspace-logs-backup-<timestamp>
+```
 
 ## Important Notes
 
@@ -439,11 +482,34 @@ kubectl delete -f k8s/dspace-cronjobs.yaml -n clarin-dspace-ns
 
 ### Access Logs
 
+**Container Logs (from Kubernetes):**
 ```powershell
 kubectl logs -n clarin-dspace-ns -l app=dspace-backend -f
 kubectl logs -n clarin-dspace-ns -l app=dspace-angular -f
 kubectl logs -n clarin-dspace-ns -l app=dspace-solr-0 -f
 kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
+```
+
+**DSpace Application Logs (from persistent volume):**
+```powershell
+# Access the backend pod
+kubectl exec -it <backend-pod-name> -n clarin-dspace-ns -- /bin/bash
+
+# View logs
+tail -f /dspace/log/dspace.log
+tail -f /dspace/log/solr.log
+
+# Or view logs directly without entering the pod
+kubectl exec -it <backend-pod-name> -n clarin-dspace-ns -- tail -f /dspace/log/dspace.log
+```
+
+**Access Log Backups from S3:**
+```powershell
+# List log backups in S3
+aws s3 ls s3://<bucket-name>/dspace-logs-backup/ --endpoint-url <s3-endpoint>
+
+# Download a specific log backup
+aws s3 sync s3://<bucket-name>/dspace-logs-backup/2026-01-28_02-00-00/ ./local-logs/ --endpoint-url <s3-endpoint>
 ```
 
 ### Common Issues
@@ -464,6 +530,7 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
    ```powershell
    kubectl get pvc -n clarin-dspace-ns
    kubectl describe pvc -n clarin-dspace-ns assetstore-pv-claim
+   kubectl describe pvc -n clarin-dspace-ns dspace-logs-pv-claim
    ```
 
 4. Ingress issues:
@@ -471,12 +538,24 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
    kubectl describe ingress dspace-ingress -n clarin-dspace-ns
    ```
 
+5. Log backup issues:
+   ```powershell
+   # Check if log backup CronJob is scheduled
+   kubectl get cronjob dspace-logs-backup -n clarin-dspace-ns
+   
+   # Check recent backup job status
+   kubectl get jobs -n clarin-dspace-ns | grep dspace-logs-backup
+   
+   # View backup job logs
+   kubectl logs -n clarin-dspace-ns job/dspace-logs-backup-<job-id>
+   ```
+
 ## Cleanup
 
 ```powershell
 kubectl delete -f k8s/ -n clarin-dspace-ns
 # if needed delete the PVCs too (DATA WILL BE LOST !!!)
-kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
+kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc dspace-logs-pv-claim -n clarin-dspace-ns
 ```
 
 ## Performance

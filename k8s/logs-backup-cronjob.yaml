@@ -1,0 +1,113 @@
+# DSpace Log Backup to S3 - CronJob
+# This CronJob backs up DSpace logs to S3 storage
+# Runs daily at 2 AM UTC
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-logs-backup
+spec:
+  # Run daily at 2:00 AM UTC
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1100
+            fsGroup: 1100
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: dspace-logs
+            persistentVolumeClaim:
+              claimName: dspace-logs-pv-claim
+          containers:
+          - name: log-backup
+            # Using AWS CLI image for S3 operations
+            image: amazon/aws-cli:latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                # Create timestamp for backup
+                TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+                BACKUP_PREFIX="dspace-logs-backup/${TIMESTAMP}"
+                
+                echo "Starting log backup to S3..."
+                echo "Timestamp: ${TIMESTAMP}"
+                echo "S3 Bucket: ${S3_BUCKET_NAME}"
+                echo "S3 Prefix: ${BACKUP_PREFIX}"
+                
+                # Configure AWS CLI for S3-compatible storage
+                aws configure set aws_access_key_id "${AWS_ACCESS_KEY_ID}"
+                aws configure set aws_secret_access_key "${AWS_SECRET_ACCESS_KEY}"
+                aws configure set default.region "${S3_REGION}"
+                
+                # Sync logs to S3 with timestamp-based prefix
+                # Using --endpoint-url for S3-compatible storage (e.g., CESNET S3)
+                aws s3 sync /dspace/log/ "s3://${S3_BUCKET_NAME}/${BACKUP_PREFIX}/" \
+                  --endpoint-url "${S3_ENDPOINT}" \
+                  --exclude "*.tmp" \
+                  --exclude ".*"
+                
+                if [ $? -eq 0 ]; then
+                  echo "Log backup completed successfully"
+                  
+                  # Optional: Delete old log files after successful backup (keep last 7 days)
+                  # Uncomment the following lines to enable automatic log cleanup
+                  # echo "Cleaning up old log files (older than 7 days)..."
+                  # find /dspace/log -type f -name "*.log*" -mtime +7 -delete
+                  # echo "Cleanup completed"
+                else
+                  echo "Log backup failed"
+                  exit 1
+                fi
+            resources:
+              requests:
+                cpu: 500m
+                memory: 256Mi
+              limits:
+                cpu: 1
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 1100
+            volumeMounts:
+            - name: dspace-logs
+              mountPath: /dspace/log
+              readOnly: true
+            env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_ENDPOINT
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_REGION
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_BUCKET_NAME
