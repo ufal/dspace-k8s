@@ -103,15 +103,17 @@ Resource limits and requests have been calibrated based on production metrics (d
 | **CronJobs** (all 7) | 1000m | 2 | 1Gi | 2Gi | Batch maintenance tasks |
 
 **Total Resource Requirements:**
-- **CPU Requests:** ~4.5 CPU cores (4000m main + 500m postgres)
-- **CPU Limits:** ~10 CPU cores (with postgres 3-instance HA)
-- **Memory Requests:** ~9.5Gi
-- **Memory Limits:** ~20Gi (main workloads)
+- **CPU Requests:** ~4.5 CPU cores (3000m main workloads + 1500m postgres 3 instances)
+- **CPU Limits:** ~12 CPU cores (6 main workloads + 6000m postgres 3 instances)
+- **Memory Requests:** ~10.5Gi (9Gi main + 1536Mi postgres)
+- **Memory Limits:** ~24Gi (18Gi main workloads + 6Gi postgres)
 
 **Notes:**
 - Limits must sum to less than namespace/project quota
 - PostgreSQL runs 3 instances (1 primary + 2 replicas) for high availability
-- CronJobs run maintenance tasks (index-discovery, health-report, OAI import, subscriptions, cleanup)
+- CronJobs run maintenance tasks (index-discovery, health-report, OAI import, subscriptions, cleanup) and use 1000m CPU request for adequate performance
+- Backend CPU limit reduced from 4→2 based on low production usage (0.21% CPU)
+- Angular memory limit increased significantly (2Gi→8Gi) to handle pm2's 7 instances safely
 - Resource values based on production observability (issue #2)
 
 
