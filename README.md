@@ -43,10 +43,21 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 |-----------|--------------|------|--------|
 | **PostgreSQL** | `csi-ceph-rbd-du` | 20Gi | Fast block storage for database operations |
 | **Solr** | `csi-ceph-rbd-du` | 5Gi | Better performance for search indexing |
-| **Assets** | `nfs-csi` | 5Gi | Good for large files, supports multi-pod access |
-| **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored in S3 |
+| **Bitstreams** | **S3 Storage** | Unlimited | Uploaded files stored exclusively in S3 (no local assetstore) |
 
 **S3 Configuration:**
+
+This deployment uses **S3-only storage** for bitstreams - no local assetstore is configured. All uploaded files are stored directly in S3 object storage.
+
+- **Storage mode**: S3-only (no local assetstore, no synchronization)
+- **Primary store**: S3 (store index 1)
+- **Direct downloads**: Enabled via presigned URLs for better performance
+- For detailed information, see the [S3 Storage Integration wiki](https://github.com/ufal/clarin-dspace/wiki/S3-Storage-Integration)
+
+**Setting up S3 Secrets:**
+
+For information on how to securely configure S3 credentials, see [issue #23](https://github.com/ufal/dspace-k8s/issues/23).
+
 - Credentials example `k8s/secrets.yaml` below (this file is gitignored by default — do NOT commit real secrets).
 - S3 settings in `k8s/dspace-configmap.yaml` - `local.cfg` (reads endpoint, bucket, region from the env)
 - Sealing secrets: create a safe-to-commit sealed secret from `k8s/secrets.yaml`:
@@ -96,7 +107,8 @@ popd
 ```
 
 Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/sealed-secrets.yaml` or `kubectl apply -k k8s` (the controller will decrypt it in-cluster).
-- **Note:** Dataquest DSpace stores bitstreams in both S3 and local NFS for redundancy
+
+> **Note:** The file `k8s/assets-pvc.yaml` still exists in the repository for backwards compatibility but is **not used** in the current S3-only configuration. It is not included in `k8s/kustomization.yaml` and will not be deployed. If you need local assetstore storage in the future, you can add it back to the kustomization resources.
 
 ### **Resource Requirements**
 
@@ -473,7 +485,8 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
 3. Storage issues:
    ```powershell
    kubectl get pvc -n clarin-dspace-ns
-   kubectl describe pvc -n clarin-dspace-ns assetstore-pv-claim
+   # Note: No assetstore PVC in S3-only configuration
+   kubectl describe pvc -n clarin-dspace-ns solr-data-pvc
    ```
 
 4. Ingress issues:
@@ -486,7 +499,8 @@ kubectl logs -n clarin-dspace-ns dspace-postgres-1 -f
 ```powershell
 kubectl delete -f k8s/ -n clarin-dspace-ns
 # if needed delete the PVCs too (DATA WILL BE LOST !!!)
-kubectl delete pvc assetstore-pv-claim dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
+# Note: No assetstore-pv-claim in S3-only configuration
+kubectl delete pvc dspace-postgres-1 solr-data-pvc -n clarin-dspace-ns
 ```
 
 ## Performance

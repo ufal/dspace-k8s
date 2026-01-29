@@ -5,7 +5,7 @@ kind: Kustomization
 namespace: clarin-dspace-ns
 
 resources:
-  - assets-pvc.yaml
+  # No assets-pvc.yaml - using S3-only storage (no local assetstore)
   - solr-pvc.yaml
   - postgres-cnpg-cluster.yaml
   - solr-service.yaml
