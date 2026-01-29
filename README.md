@@ -74,6 +74,16 @@ stringData:
   # Change password before deploying to production!
   username: "dspace"
   password: "PASSWORD"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dspace-admin-secret
+type: kubernetes.io/basic-auth
+stringData:
+  username: "admin@admin.sk"
+  password: "admin"
+
 ```
 
 ```bash

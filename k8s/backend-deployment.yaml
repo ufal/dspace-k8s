@@ -65,9 +65,18 @@ spec:
                 secretKeyRef:
                   name: dspace-postgres-superuser
                   key: password
-            # Auto-create admin user with default credentials (ONLY FOR TESTING!)
-            - name: DSPACE_AUTO_CREATE_ADMIN
-              value: "false"  # Change to "true" if you wish to auto-create admin user
+
+            - name: DSPACE_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-admin-secret
+                  key: username
+
+            - name: DSPACE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-admin-secret
+                  key: password
 
             # S3 Assetstore Configuration
             - name: AWS_ACCESS_KEY_ID
@@ -101,6 +110,9 @@ spec:
             - name: local-config
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
+            - name: local-config
+              mountPath: /dspace/bin/user_exists.jsh
+              subPath: user_exists.jsh
           readinessProbe:
             httpGet:
               port: 8080
@@ -205,12 +217,11 @@ spec:
           command: ['/bin/bash', '-c']
           args:
             - |-
-              # Auto-create admin user only if DSPACE_AUTO_CREATE_ADMIN=true (for testing only!)
-              if [ "${DSPACE_AUTO_CREATE_ADMIN:-false}" = "true" ]; then
-                echo "Creating default admin user...";
-                /dspace/bin/dspace create-administrator -e admin@admin.sk -f admin -l admin -p admin -c en || true
-              else
-                echo "DSPACE_AUTO_CREATE_ADMIN not set: Skipping auto admin creation.";
+              if [ -n "${DSPACE_ADMIN_PASSWORD}" ]; then
+              ( jshell -q --class-path /dspace/lib/postgresql-*.jar /dspace/bin/user_exists.jsh | grep "user already exists" ) || (
+                echo "Creating admin user...";
+                /dspace/bin/dspace create-administrator -e "${DSPACE_ADMIN_EMAIL}" -f admin -l admin -p "${DSPACE_ADMIN_PASSWORD}" -c en
+              )
               fi
           # No need for probes and ports in init container
           ports: []
