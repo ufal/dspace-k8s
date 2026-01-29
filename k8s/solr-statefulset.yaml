@@ -4,6 +4,9 @@ metadata:
   name: dspace-solr
   labels:
     app: dspace-solr
+    component: search
+    tier: data
+    logging: enabled
 spec:
   serviceName: dspace-solr-service
   replicas: 1
@@ -14,6 +17,14 @@ spec:
     metadata:
       labels:
         app: dspace-solr
+        component: search
+        tier: data
+        logging: enabled
+      annotations:
+        # CERIT logging configuration
+        # Enable Fluent Bit log collection for Solr logs
+        fluentbit.io/parser: "multiline"
+        fluentbit.io/exclude-path: "*.tmp"
     spec:
       # Fix permissions for Ceph RBD volume (fsGroup sets ownership to 8983:8983)
       securityContext:

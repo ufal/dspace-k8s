@@ -4,6 +4,9 @@ metadata:
   name: dspace-backend
   labels:
     app: dspace-backend
+    component: backend
+    tier: api
+    logging: enabled
 spec:
   replicas: 1
   selector:
@@ -13,6 +16,17 @@ spec:
     metadata:
       labels:
         app: dspace-backend
+        component: backend
+        tier: api
+        logging: enabled
+      annotations:
+        # CERIT logging configuration
+        # Enable Fluent Bit log collection
+        fluentbit.io/parser: "multi_line"
+        # Log path for Fluent Bit to collect
+        fluentbit.io/path: "/dspace/log/*.log"
+        # Exclude patterns
+        fluentbit.io/exclude-path: "/dspace/log/*.tmp"
     spec:
       securityContext:
         fsGroup: 1100

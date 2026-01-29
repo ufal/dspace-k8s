@@ -2,6 +2,11 @@
 
 This directory contains a DSpace 7 Kubernetes deployment configuration for Rancher Cloud with a scalable split architecture.
 
+## Documentation
+
+- **[LOGGING.md](LOGGING.md)** - Comprehensive logging guide (CERIT infrastructure, persistent volumes, S3 backups)
+- **README.md** (this file) - Deployment and configuration guide
+
 ## Current Architecture
 
 Split architecture with independent, scalable components:
@@ -51,7 +56,9 @@ All services use ClusterIP. Only HTTPS (443) is exposed externally.
 - DSpace logs are stored in a persistent volume at `/dspace/log`
 - Logs are automatically backed up to S3 daily at 2:00 AM UTC via the `dspace-logs-backup` CronJob
 - Backups are stored with timestamp-based prefixes in S3: `dspace-logs-backup/YYYY-MM-DD_HH-MM-SS/`
+- CERIT infrastructure integration: Pods are annotated for Fluent Bit log collection to centralized logging
 - Optional: Automatic cleanup of old log files can be enabled in `k8s/logs-backup-cronjob.yaml`
+- **See [LOGGING.md](LOGGING.md) for comprehensive logging documentation**
 
 **S3 Configuration:**
 - Credentials example `k8s/secrets.yaml` below (this file is gitignored by default — do NOT commit real secrets).

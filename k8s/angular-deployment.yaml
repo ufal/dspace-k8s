@@ -4,6 +4,9 @@ metadata:
   name: dspace-angular
   labels:
     app: dspace-angular
+    component: frontend
+    tier: ui
+    logging: enabled
 spec:
   replicas: 1
   selector:
@@ -13,6 +16,15 @@ spec:
     metadata:
       labels:
         app: dspace-angular
+        component: frontend
+        tier: ui
+        logging: enabled
+      annotations:
+        # CERIT logging configuration
+        # Enable Fluent Bit log collection for Angular logs
+        fluentbit.io/parser: "json"
+        # Angular typically logs to stdout, but this allows custom log paths
+        fluentbit.io/exclude-path: "*.tmp"
     spec:
       volumes:
         - name: local-config

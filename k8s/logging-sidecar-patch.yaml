@@ -1,0 +1,103 @@
+# Optional FluentBit Sidecar for Advanced Log Shipping
+# This patch can be applied to enable a FluentBit sidecar container for shipping logs
+# to external logging systems (e.g., Elasticsearch, Loki, CloudWatch)
+#
+# To use this sidecar:
+# 1. Uncomment the sidecar section in backend-deployment.yaml
+# 2. Configure the FluentBit output in the ConfigMap below
+# 3. Apply with: kubectl apply -k k8s/
+#
+# Note: CERIT infrastructure typically provides cluster-level FluentBit DaemonSet,
+# so this sidecar is optional and only needed for custom log routing.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentbit-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Daemon        off
+        Log_Level     info
+        Parsers_File  parsers.conf
+
+    [INPUT]
+        Name              tail
+        Path              /dspace/log/*.log
+        Parser            multiline-dspace
+        Tag               dspace.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        
+    [FILTER]
+        Name                kubernetes
+        Match               dspace.*
+        Kube_Tag_Prefix     dspace.
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+        
+    [OUTPUT]
+        Name   stdout
+        Match  *
+        Format json_lines
+        
+    # Uncomment and configure for external logging systems:
+    # [OUTPUT]
+    #     Name   es
+    #     Match  *
+    #     Host   elasticsearch.logging.svc.cluster.local
+    #     Port   9200
+    #     Index  dspace-logs
+    #     Type   _doc
+    
+    # [OUTPUT]
+    #     Name   loki
+    #     Match  *
+    #     Host   loki.logging.svc.cluster.local
+    #     Port   3100
+    #     Labels job=dspace
+
+  parsers.conf: |
+    [PARSER]
+        Name        multiline-dspace
+        Format      regex
+        Regex       ^(?<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+(?<level>\w+)\s+(?<logger>[\w\.]+)\s+@\s+(?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%d %H:%M:%S,%L
+        
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+
+---
+# Example sidecar container definition (for reference)
+# Add this to the containers section of backend-deployment.yaml if needed:
+#
+# - name: fluent-bit
+#   image: fluent/fluent-bit:2.2
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 128Mi
+#     limits:
+#       cpu: 200m
+#       memory: 256Mi
+#   volumeMounts:
+#   - name: dspace-logs
+#     mountPath: /dspace/log
+#     readOnly: true
+#   - name: fluentbit-config
+#     mountPath: /fluent-bit/etc/
+#   securityContext:
+#     allowPrivilegeEscalation: false
+#     capabilities:
+#       drop: ["ALL"]
+#     runAsNonRoot: true
+#     runAsUser: 1100
