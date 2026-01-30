@@ -7,7 +7,7 @@ resources:
 namespace: ${NAMESPACE}   # <-- change to whatever you need
 
 # -------------------------------------------------------------------------
-# 3️⃣  Patches that change the public hostname
+# 3️⃣  Patches that change the public hostname and S3 backup configuration
 # -------------------------------------------------------------------------
 patches:
   - path: sealed-secrets.yaml
@@ -21,6 +21,11 @@ patches:
     target:
       kind: Deployment
       name: dspace-backend
+  # PostgreSQL backup configuration - customize S3 endpoint and bucket
+  - path: postgres-cnpg-cluster.yaml
+    target:
+      kind: Cluster
+      name: dspace-postgres
   - target:
       kind: Ingress
       name: dspace-ingress

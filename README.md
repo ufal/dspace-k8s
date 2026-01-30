@@ -113,7 +113,11 @@ Then commit `k8s/sealed-secrets.yaml` and apply it with `kubectl apply -f k8s/se
 
 **S3 Bucket Requirements for PostgreSQL Backups:**
 - The S3 credentials must have read/write permissions to the backup destination path
-- PostgreSQL backups are stored at: `s3://dspace-backups/postgresql/` (configurable in `k8s/postgres-cnpg-cluster.yaml`)
+- PostgreSQL backups are stored at: `s3://dspace-backups/postgresql-backups/` by default
+- **For production deployments:** Use overlays to customize the backup bucket and endpoint:
+  - The `init_overlay.sh` script will prompt for S3 backup bucket name and endpoint URL
+  - These values should match your `S3_BUCKET_NAME` and `S3_ENDPOINT` from the secret
+  - Alternatively, manually patch `k8s/postgres-cnpg-cluster.yaml` in your overlay
 - You can use the same S3 endpoint and credentials as the asset store, or configure a separate bucket for backups
 - Ensure the backup bucket has adequate retention policies and versioning if required
 - Recommended: Use a separate S3 bucket or path for database backups to isolate them from application data
