@@ -139,6 +139,7 @@ Resource limits and requests have been calibrated based on production metrics (d
 ## Pre-Deployment Configuration using overlays
 
 The repository ships with a small helper script **`init_overlay.sh`** that automates the creation of a Kustomize overlay from a set of `*.yaml.template` files located in `overlays/template`.
+It also ships with a sample overlay setup (inited by the script) in `overlays/kosarko-ns`.
 
 #### Using the newly‑created overlay
 

@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+
+namespace: kosarko-ns   # <-- change to whatever you need
+
+# -------------------------------------------------------------------------
+# 3️⃣  Patches that change the public hostname
+# -------------------------------------------------------------------------
+patches:
+  - path: sealed-secrets.yaml
+  - path: angular-deployment.yaml
+    target:
+      kind: Deployment
+      name: dspace-angular
+  # DSpace backend can read any property from the env
+  # but if this is getting too large consider overlaying local.cfg
+  - path: backend-deployment.yaml
+    target:
+      kind: Deployment
+      name: dspace-backend
+  - target:
+      kind: Ingress
+      name: dspace-ingress
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "ok-dspace.dyn.cloud.e-infra.cz"
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: "ok-dspace-dyn-cloud-e-infra-cz-tls" #replace . with - and append -tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: "ok-dspace.dyn.cloud.e-infra.cz"

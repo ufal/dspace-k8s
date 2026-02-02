@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dspace-angular
+spec:
+  template:
+    spec:
+      containers:
+        - name: dspace-angular
+          env:
+            - name: DSPACE_REST_HOST
+              value: "ok-dspace.dyn.cloud.e-infra.cz"
