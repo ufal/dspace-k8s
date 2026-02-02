@@ -9,9 +9,9 @@ metadata:
     # Enable proxy buffering off for SSE/long responses if needed
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     # Additional timeout settings for DSpace
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "75"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "6000"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "6000"
     # Backend protocol
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     # Rate limiting
@@ -20,6 +20,7 @@ metadata:
     # Web Application Firewall (ModSecurity)
     nginx.ingress.kubernetes.io/enable-modsecurity: "true"
     nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10g"
 spec:
   ingressClassName: nginx
   tls:

@@ -71,6 +71,9 @@ data:
     db.maxwait = 10000
     # Maximum idle connections in the pool
     db.maxidle = 20
+    # until we finish https://github.com/ufal/clarin-dspace/issues/1156
+    spring.servlet.multipart.max-file-size = 10GB
+    spring.servlet.multipart.max-request-size = 10GB
 
   environment.prod.ts: |-
     export const environment = {
