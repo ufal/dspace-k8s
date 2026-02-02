@@ -10,7 +10,7 @@ resources:
   - postgres-cnpg-cluster.yaml
   - solr-service.yaml
   - solr-statefulset.yaml
-  - dspace-configmap.yaml
+  #- dspace-configmap.yaml
   - backend-service.yaml
   - backend-deployment.yaml
   - angular-service.yaml
@@ -18,3 +18,12 @@ resources:
   - dspace-ingress.yaml
   - dspace-cronjobs.yaml
   - sealed-secrets.yaml
+
+configMapGenerator:
+- name: local-config-map
+  files:
+  - local.cfg
+  # Angular runtime config used by the dspace/dspace-angular image (SSR)
+  - config.yml
+  - environment.prod.ts
+  - user_exists.jsh
