@@ -33,6 +33,7 @@ External access via Ingress:
 - Host: `hello-clarin-dspace.dyn.cloud.e-infra.cz`
 - TLS: Let's Encrypt certificate
 - Routes: `/` → Angular, `/server` → Backend API
+- The client_max_body is set to *10G*
 All services use ClusterIP. Only HTTPS (443) is exposed externally.
 
 ### **Storage Configuration**

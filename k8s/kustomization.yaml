@@ -10,7 +10,6 @@ resources:
   - postgres-cnpg-cluster.yaml
   - solr-service.yaml
   - solr-statefulset.yaml
-  #- dspace-configmap.yaml
   - backend-service.yaml
   - backend-deployment.yaml
   - angular-service.yaml
