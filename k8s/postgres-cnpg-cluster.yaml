@@ -22,6 +22,17 @@ spec:
         - GRANT ALL PRIVILEGES ON SCHEMA public TO dspace;
         - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dspace;
         - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dspace;
+
+  # https://docs.cerit.io/en/docs/operators/postgres-cnpg
+  # Some newer Postgres images include updated versions of the boto3 library,
+  #  which may be incompatible with certain S3 endpoints (for example, DU CESNET).
+  env:
+    - name: AWS_REQUEST_CHECKSUM_CALCULATION
+      value: when_required
+    - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+      value: when_required
+    - name: AWS_NO_CHUNKED_ENCODING
+      value: "true"
   
   storage:
     size: 20Gi
@@ -85,48 +96,10 @@ spec:
   
   failoverDelay: 10  # Wait 10s before failover when primary fails (recommended for production)
   switchoverDelay: 60  # Wait 60s before planned switchover (allow connections to drain)
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: dspace-barman-store
   
-  # ========================================================================
-  # Backup Configuration
-  # ========================================================================
-  # Automated backups to S3-compatible storage using Barman
-  # - Daily scheduled backups at 2:00 AM UTC (see postgres-scheduled-backup.yaml)
-  # - Continuous WAL archiving for point-in-time recovery
-  # - 30-day retention policy
-  # 
-  # IMPORTANT: 
-  # - Ensure S3 credentials have write permissions to backup path
-  # - The destinationPath and endpointURL should match your S3 configuration
-  # - For production: Use overlays to customize these values (see overlays/template/)
-  # - The values below are defaults that should be overridden via overlays
-  backup:
-    barmanObjectStore:
-      # S3 backup destination
-      # CUSTOMIZE via overlay: s3://<your-bucket>/postgresql-backups/
-      # Should use the same bucket as S3_BUCKET_NAME in s3-assetstore-secret
-      destinationPath: "s3://dspace-backups/postgresql-backups/"
-      serverName: "dspace-postgres"
-      # S3 credentials - reuses the same secret as DSpace asset store
-      s3Credentials:
-        accessKeyId:
-          name: s3-assetstore-secret
-          key: AWS_ACCESS_KEY_ID
-        secretAccessKey:
-          name: s3-assetstore-secret
-          key: AWS_SECRET_ACCESS_KEY
-        region:
-          name: s3-assetstore-secret
-          key: S3_REGION
-      # S3 endpoint URL
-      # CUSTOMIZE via overlay to match S3_ENDPOINT in s3-assetstore-secret
-      endpointURL: "https://s3.cl4.du.cesnet.cz"
-      # WAL (Write-Ahead Log) archiving configuration
-      wal:
-        compression: gzip      # Compress WAL files to save space
-        maxParallel: 8         # Parallel uploads for better performance
-      # Data backup configuration
-      data:
-        compression: gzip      # Compress backup files
-        jobs: 2                # Parallel backup jobs
-    # Retention policy - keep backups for 30 days
-    retentionPolicy: "30d"

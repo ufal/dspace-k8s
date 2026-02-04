@@ -22,10 +22,10 @@ patches:
       kind: Deployment
       name: dspace-backend
   # PostgreSQL backup configuration - customize S3 endpoint and bucket
-  - path: postgres-cnpg-cluster.yaml
+  - path: postgres-cnpg-backup-plugin-config.yaml
     target:
-      kind: Cluster
-      name: dspace-postgres
+      kind: ObjectStore
+      name: dspace-barman-store
   - target:
       kind: Ingress
       name: dspace-ingress

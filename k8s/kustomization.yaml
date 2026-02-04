@@ -9,6 +9,7 @@ resources:
   - solr-pvc.yaml
   - postgres-cnpg-cluster.yaml
   - postgres-scheduled-backup.yaml
+  - postgres-cnpg-backup-plugin-config.yml
   - solr-service.yaml
   - solr-statefulset.yaml
   - dspace-configmap.yaml

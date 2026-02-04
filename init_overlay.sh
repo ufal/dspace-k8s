@@ -21,14 +21,15 @@ die() {
 
 # ---------- Gather user input ----------
 read -rp "Enter the namespace: " NAMESPACE
+NAMESPACE="${NAMESPACE#"${NAMESPACE%%[![:space:]]*}"}"
+NAMESPACE="${NAMESPACE%"${NAMESPACE##*[![:space:]]}"}"
+
 read -rp "Enter the hostname (e.g. app.example.com): " NEW_HOST
-read -rp "Enter a name for the overlay directory: " OVERLAYNAME
+read -rp "Enter a name for the overlay directory (default: $NAMESPACE): " OVERLAYNAME
 read -rp "Enter S3 backup bucket name (default: dspace-backups): " S3_BACKUP_BUCKET
 read -rp "Enter S3 backup endpoint URL (default: https://s3.cl4.du.cesnet.cz): " S3_BACKUP_ENDPOINT
 
 # Trim possible surrounding whitespace
-NAMESPACE="${NAMESPACE#"${NAMESPACE%%[![:space:]]*}"}"
-NAMESPACE="${NAMESPACE%"${NAMESPACE##*[![:space:]]}"}"
 NEW_HOST="${NEW_HOST#"${NEW_HOST%%[![:space:]]*}"}"
 NEW_HOST="${NEW_HOST%"${NEW_HOST##*[![:space:]]}"}"
 OVERLAYNAME="${OVERLAYNAME#"${OVERLAYNAME%%[![:space:]]*}"}"
@@ -41,6 +42,7 @@ S3_BACKUP_ENDPOINT="${S3_BACKUP_ENDPOINT%"${S3_BACKUP_ENDPOINT##*[![:space:]]}"}
 # Set defaults if empty
 [[ -z "$S3_BACKUP_BUCKET" ]] && S3_BACKUP_BUCKET="dspace-backups"
 [[ -z "$S3_BACKUP_ENDPOINT" ]] && S3_BACKUP_ENDPOINT="https://s3.cl4.du.cesnet.cz"
+[[ -z "$OVERLAYNAME" ]] && OVERLAYNAME="$NAMESPACE"
 
 # Validate inputs
 [[ -z "$NAMESPACE" ]] && die "Namespace cannot be empty."
@@ -64,8 +66,14 @@ TARGET_DIR="overlays/${OVERLAYNAME}"
 
 # Create (or clean) the target overlay directory
 if [[ -d "$TARGET_DIR" ]]; then
-  die "Overlay directory '$TARGET_DIR' already exists – its contents will be overwritten."
-  #rm -rf "${TARGET_DIR:?}/"*   # safe‑guard against accidental rm -
+  echo "Overlay directory '$TARGET_DIR' already exists – its contents will be overwritten."
+  read -rp "Continue (y/n): " response
+  if [[ "$response" =~ ^[Yy]$ ]]; then
+        :
+  else
+      echo "Action cancelled."
+      exit 0
+  fi
 else
   mkdir -p "$TARGET_DIR"
 fi

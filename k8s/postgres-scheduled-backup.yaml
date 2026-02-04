@@ -19,3 +19,10 @@ spec:
   # Useful for testing and ensuring first backup is available quickly
   # Can be set to false after initial deployment
   immediate: true
+
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  # Retention policy - keep backups for 30 days
+  # retentionPolicy: "30d"
+

@@ -1,0 +1,45 @@
+# ========================================================================
+# Backup Configuration
+# ========================================================================
+# Automated backups to S3-compatible storage using Barman
+# - Daily scheduled backups at 2:00 AM UTC (see postgres-scheduled-backup.yaml)
+# - Continuous WAL archiving for point-in-time recovery
+# - 30-day retention policy
+# 
+# IMPORTANT: 
+# - Ensure S3 credentials have write permissions to backup path
+# - The destinationPath and endpointURL should match your S3 configuration
+# - For production: Use overlays to customize these values (see overlays/template/)
+# - The values below are defaults that should be overridden via overlays
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: dspace-barman-store
+spec:
+  configuration:
+    # S3 backup destination
+    # CUSTOMIZE via overlay: s3://<your-bucket>/postgresql-backups/
+    # Ideally use a different bucket than the one DSpace uses
+    # (we might have different bucket configuration such as versioning)
+    destinationPath: "s3://dspace-backups/postgresql-backups/"
+    # S3 endpoint URL
+    # CUSTOMIZE via overlay to match S3_ENDPOINT in s3-assetstore-secret
+    endpointURL: "https://s3.cl4.du.cesnet.cz"
+    # S3 credentials - reuses the same secret as DSpace asset store
+    s3Credentials:
+      accessKeyId:
+        name: s3-assetstore-secret
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: s3-assetstore-secret
+        key: AWS_SECRET_ACCESS_KEY
+      region:
+          name: s3-assetstore-secret
+          key: S3_REGION
+    # WAL (Write-Ahead Log) archiving configuration
+    wal:
+      compression: gzip      # Compress WAL files to save space
+      maxParallel: 8         # Parallel uploads for better performance
+    data:
+      compression: gzip      # Compress backup files
+      jobs: 2                # Parallel backup jobs
