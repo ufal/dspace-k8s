@@ -22,6 +22,17 @@ spec:
         - GRANT ALL PRIVILEGES ON SCHEMA public TO dspace;
         - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dspace;
         - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dspace;
+
+  # https://docs.cerit.io/en/docs/operators/postgres-cnpg
+  # Some newer Postgres images include updated versions of the boto3 library,
+  #  which may be incompatible with certain S3 endpoints (for example, DU CESNET).
+  env:
+    - name: AWS_REQUEST_CHECKSUM_CALCULATION
+      value: when_required
+    - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+      value: when_required
+    - name: AWS_NO_CHUNKED_ENCODING
+      value: "true"
   
   storage:
     size: 20Gi
@@ -85,3 +96,10 @@ spec:
   
   failoverDelay: 10  # Wait 10s before failover when primary fails (recommended for production)
   switchoverDelay: 60  # Wait 60s before planned switchover (allow connections to drain)
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: dspace-barman-store
+  

@@ -1,0 +1,28 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: dspace-postgres-daily-backup
+spec:
+  # Backup schedule in cron format (6-field with seconds)
+  # Daily backup at 2:00 AM UTC
+  # Format: second minute hour day month weekday
+  schedule: "0 0 2 * * *"
+  
+  # Set the backup owner reference to ensure proper lifecycle management
+  backupOwnerReference: self
+  
+  # Reference to the PostgreSQL cluster to backup
+  cluster:
+    name: dspace-postgres
+  
+  # Take an immediate backup when this resource is created
+  # Useful for testing and ensuring first backup is available quickly
+  # Can be set to false after initial deployment
+  immediate: true
+
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  # Retention policy - keep backups for 30 days
+  # retentionPolicy: "30d"
+
