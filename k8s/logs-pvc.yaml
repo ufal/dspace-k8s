@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dspace-logs-pvc
+  name: dspace-logs-pvc-rwx
 spec:
   # Keep /dspace/log persistent across pod restarts
-  storageClassName: csi-ceph-rbd-du
+  storageClassName: nfs-csi
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 10Gi

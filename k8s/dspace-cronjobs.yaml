@@ -391,3 +391,92 @@ spec:
                 secretKeyRef:
                   name: dspace-postgres-superuser
                   key: password
+---
+# Long-term persistence: sync rotated logs to S3 (exclude active dspace.log/warn.log)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-log-backup
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1100
+            fsGroup: 1100
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: dspace-logs
+            persistentVolumeClaim:
+              claimName: dspace-logs-pvc-rwx
+          containers:
+          - name: dspace-log-s3-sync
+            image: docker.io/amazon/aws-cli:2.33.15
+            env:
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-assetstore-secret
+                    key: AWS_ACCESS_KEY_ID
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-assetstore-secret
+                    key: AWS_SECRET_ACCESS_KEY
+              - name: AWS_ENDPOINT_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-assetstore-secret
+                    key: S3_ENDPOINT
+              - name: AWS_DEFAULT_REGION
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-assetstore-secret
+                    key: S3_REGION
+              - name: S3_BUCKET_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-assetstore-secret
+                    key: S3_BUCKET_NAME
+              # https://docs.cerit.io/en/docs/operators/postgres-cnpg
+              # Some images include updated versions of the boto3 library,
+              #  which may be incompatible with certain S3 endpoints (for example, DU CESNET).
+              - name: AWS_REQUEST_CHECKSUM_CALCULATION
+                value: when_required
+              - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+                value: when_required
+              - name: AWS_NO_CHUNKED_ENCODING
+                value: "true"
+            envFrom:
+              - secretRef:
+                  name: s3-assetstore-secret
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                aws s3 sync /dspace/log s3://"${S3_BUCKET_NAME}"/log
+            resources:
+              requests:
+                cpu: 1
+                memory: 128Mi
+              limits:
+                cpu: 1
+                memory: 512Mi
+            securityContext: 
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 1100
+              seccompProfile:
+                type: RuntimeDefault
+            volumeMounts:
+              - name: dspace-logs
+                mountPath: /dspace/log

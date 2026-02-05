@@ -23,7 +23,7 @@ spec:
             name: local-config-map
         - name: dspace-logs
           persistentVolumeClaim:
-            claimName: dspace-logs-pvc
+            claimName: dspace-logs-pvc-rwx
         - name: tomcat-logs
           persistentVolumeClaim:
             claimName: tomcat-logs-pvc
@@ -125,7 +125,6 @@ spec:
               port: 8080
               # This should involve postgres/solr query
               path: /server/api/core/communities
-            initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
@@ -134,7 +133,6 @@ spec:
               port: 8080
               # This IMO shouldn't involve DB/Solr
               path: /server/api
-            initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
