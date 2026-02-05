@@ -7,6 +7,7 @@ namespace: clarin-dspace-ns
 resources:
   # No assets-pvc.yaml - using S3-only storage (no local assetstore)
   - solr-pvc.yaml
+  - logs-pvc.yaml
   - postgres-cnpg-cluster.yaml
   - postgres-scheduled-backup.yaml
   - postgres-cnpg-backup-plugin-config.yml

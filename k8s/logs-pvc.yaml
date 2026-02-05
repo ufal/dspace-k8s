@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dspace-logs-pvc
+spec:
+  # Keep /dspace/log persistent across pod restarts
+  storageClassName: csi-ceph-rbd-du
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tomcat-logs-pvc
+spec:
+  # Keep /dspace/log persistent across pod restarts
+  storageClassName: csi-ceph-rbd-du
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
