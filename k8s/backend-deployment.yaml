@@ -26,7 +26,7 @@ spec:
             claimName: dspace-logs-pvc-rwx
         - name: tomcat-logs
           persistentVolumeClaim:
-            claimName: tomcat-logs-pvc
+            claimName: tomcat-logs-pvc-rwx
       containers:
         - &dspaceContainer
           name: dspace

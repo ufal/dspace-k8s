@@ -15,10 +15,10 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: tomcat-logs-pvc
+  name: tomcat-logs-pvc-rwx
 spec:
   # Keep Tomcat logs at /usr/local/tomcat/logs persistent across pod restarts
-  storageClassName: csi-ceph-rbd-du
+  storageClassName: nfs-csi
   accessModes:
     - ReadWriteOnce
   resources:
