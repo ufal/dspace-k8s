@@ -480,3 +480,57 @@ spec:
             volumeMounts:
               - name: dspace-logs
                 mountPath: /dspace/log
+---
+# cleanup /dspace/logs (they've been backed up, haven't they)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dspace-log-cleanup
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1100
+            fsGroup: 1100
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: dspace-logs
+            persistentVolumeClaim:
+              claimName: dspace-logs-pvc-rwx
+          containers:
+          - name: dspace-log-cleanup
+            image: docker.io/busybox:1.36
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                find /dspace/log/ -type f -mtime +14 -delete
+            resources:
+              requests:
+                cpu: 1
+                memory: 64Mi
+              limits:
+                cpu: 1
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+              runAsNonRoot: true
+              runAsUser: 1100
+              seccompProfile:
+                type: RuntimeDefault
+            volumeMounts:
+              - name: dspace-logs
+                mountPath: /dspace/log
+
+
