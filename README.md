@@ -593,7 +593,7 @@ The backend writes important logs as files under `/dspace/log/` (for example `ds
 
 - **Kubernetes-standard**: a sidecar (`dspace-log-tailer`) tails the files to stdout, so they are visible via `kubectl logs` and picked up by cluster logging.
 - **Persistent**: `/dspace/log` is mounted from a PVC (`dspace-logs-pvc-rwx`).
-- **Long-term**: rotated log files are periodically synced to S3 by the `dspace-log-s3-sync` cronjob.
+- **Long-term**: rotated log files are periodically synced to S3 by the `dspace-log-backup` cronjob.
 
 View the logs:
 
