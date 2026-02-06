@@ -481,13 +481,13 @@ spec:
               - name: dspace-logs
                 mountPath: /dspace/log
 ---
-# cleanup /dspace/logs (they've been backed up, haven't they)
+# cleanup /dspace/logs after S3 backup has run (see dspace-log-backup CronJob)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: dspace-log-cleanup
 spec:
-  schedule: "0 3 * * *"
+  schedule: "30 3 * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
