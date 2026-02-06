@@ -217,21 +217,22 @@ spec:
                 echo "Migration failed (attempt $i), retrying in 10s";
                 sleep 10;
               done;
-              echo "Running index-discovery (best-effort)...";
-              /dspace/bin/dspace index-discovery -b || true;
           # No need for probes and ports in init container
           ports: []
           readinessProbe: null
           livenessProbe: null
           startupProbe: null
         - <<: *dspaceContainer
-          # TODO: we don't want this in production
+          # TODO: Do we want this in production?
+          # -b (re)build the search index, wiping out current one if it exists
+          # good idea but slows down startup 
+          # and what about OAI
           name: dspace-index-discovery
           command: ['/bin/bash', '-c']
           args:
             - |-
               echo "Running index-discovery (best-effort)...";
-              /dspace/bin/dspace index-discovery -b || true;
+              /dspace/bin/dspace index-discovery -b || echo "index-discovery failed";
           # No need for probes and ports in init container
           ports: []
           readinessProbe: null
