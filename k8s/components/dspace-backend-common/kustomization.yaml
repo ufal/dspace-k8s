@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Use a patch with a target to apply this logic to both types
+patches:
+- path: shared.yaml
+  target:
+    kind: CronJob
+    labelSelector: "app.kubernetes.io/part-of=dspace-cron" # Shared label for all DSpace cli cron resources
