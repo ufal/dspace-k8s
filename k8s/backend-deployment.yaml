@@ -15,7 +15,11 @@ spec:
         app: dspace-backend
     spec:
       securityContext:
+        runAsNonRoot: true
         fsGroup: 1100
+        runAsUser: 1100
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         # No local assetstore volume - using S3-only storage
         - name: local-config
@@ -43,10 +47,6 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-            runAsNonRoot: true
-            runAsUser: 1100
-            seccompProfile:
-              type: RuntimeDefault
           command: ['/bin/bash', '-c']
           args:
             - |
