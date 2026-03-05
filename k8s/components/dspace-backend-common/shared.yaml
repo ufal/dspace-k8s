@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: CronJob
+metadata:
+  name: placeholder
+spec:
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            fsGroup: 1100
+            runAsUser: 1100
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: dspace-cli # Ensure your container names match in the bases
+            image: dataquest/dspace:dspace-7_x
+            command: ["/bin/sh", "-c"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 1
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            volumeMounts:
+            - name: local-config
+              mountPath: /dspace/config/local.cfg
+              subPath: local.cfg
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_ENDPOINT
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_REGION
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: s3-assetstore-secret
+                  key: S3_BUCKET_NAME
+          volumes:
+          - name: local-config
+            configMap:
+              name: local-config-map
