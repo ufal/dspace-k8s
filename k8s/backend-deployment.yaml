@@ -176,6 +176,13 @@ spec:
                 sleep 2;
               done;
               echo "PostgreSQL is ready."
+          resources:
+            requests:
+              cpu: 1
+              memory: 64Mi
+            limits:
+              cpu: 1
+              memory: 256Mi
           securityContext: *dspaceSecurityContext
         - name: wait-for-solr
           image: docker.io/curlimages/curl:latest
@@ -186,6 +193,13 @@ spec:
                 sleep 2;
                 echo "Waiting for Solr (dspace-solr-service:8983) to accept connections...";
               done
+          resources:
+            requests:
+              cpu: 1
+              memory: 64Mi
+            limits:
+              cpu: 1
+              memory: 256Mi
           securityContext: *dspaceSecurityContext
         - name: custom-namespace-setup
           image: docker.io/bash:latest
@@ -205,6 +219,13 @@ spec:
               else
                 echo "DSPACE_REST_NAMESPACE not set: Skipping custom namespace setup.";
               fi
+          resources:
+            requests:
+              cpu: 1
+              memory: 64Mi
+            limits:
+              cpu: 1
+              memory: 256Mi
           securityContext: *dspaceSecurityContext
         - <<: *dspaceContainer
           name: dspace-db-migrations
