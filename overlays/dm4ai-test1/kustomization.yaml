@@ -41,6 +41,30 @@ patches:
         path: /spec/rules/0/host
         value: "test.dm4ai.du.cesnet.cz"
   - path: log-sync-cronjob.yaml
+  # storageClass update for NRP cluster
+  - target:
+      kind: PersistentVolumeClaim
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: "csi-cephfs-nrp-sc"
+  - target:
+      kind: Cluster
+      name: dspace-postgres
+    patch: |-
+      - op: replace
+        path: /spec/storage/storageClass
+        value: "csi-rbd-nrp-ssd-sc"
+      - op: replace
+        path: /spec/walStorage/storageClass
+        value: "csi-rbd-nrp-ssd-sc"
+  - target:
+      kind: PersistentVolumeClaim
+      name: solr-data-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: "csi-rbd-nrp-ssd-sc"
 
 images:
   - name: dataquest/dspace
