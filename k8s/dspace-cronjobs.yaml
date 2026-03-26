@@ -160,16 +160,6 @@ spec:
           - name: dspace-log-s3-sync
             image: docker.io/amazon/aws-cli:2.33.15
             env:
-              - name: AWS_ACCESS_KEY_ID
-                valueFrom:
-                  secretKeyRef:
-                    name: s3-assetstore-secret
-                    key: AWS_ACCESS_KEY_ID
-              - name: AWS_SECRET_ACCESS_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: s3-assetstore-secret
-                    key: AWS_SECRET_ACCESS_KEY
               - name: AWS_ENDPOINT_URL
                 valueFrom:
                   secretKeyRef:
@@ -180,11 +170,6 @@ spec:
                   secretKeyRef:
                     name: s3-assetstore-secret
                     key: S3_REGION
-              - name: S3_BUCKET_NAME
-                valueFrom:
-                  secretKeyRef:
-                    name: s3-assetstore-secret
-                    key: S3_BUCKET_NAME
               # https://docs.cerit.io/en/docs/operators/postgres-cnpg
               # Some images include updated versions of the boto3 library,
               #  which may be incompatible with certain S3 endpoints (for example, DU CESNET).
