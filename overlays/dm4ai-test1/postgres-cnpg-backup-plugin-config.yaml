@@ -1,0 +1,24 @@
+# Overlay patch for PostgreSQL backup configuration
+# This patches the Cluster resource to customize S3 backup settings
+#
+# The backup destination and endpoint should match your S3 configuration
+# These values are set during overlay creation via init_overlay.sh
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: dspace-barman-store
+spec:
+  configuration:
+    # S3 backup destination - customized for this environment
+    # Format: s3://<bucket-name>/<path-prefix>/
+    destinationPath: "s3://cuni-repo-dm4ai-test1-cn-pg-001/postgresql-backups/"
+    
+    # S3 endpoint URL - should match S3_ENDPOINT in s3-assetstore-secret
+    endpointURL: "https://s3.nrp1.du.cesnet.cz"
+    s3Credentials:
+      accessKeyId:
+        name: s3-backup-secret
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: s3-backup-secret
+        key: AWS_SECRET_ACCESS_KEY
