@@ -69,10 +69,10 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: 2026.1-rc2
+    newTag: customer-dm4ai-test
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
-    newTag: 2026.1-rc2
+    newTag: customer-dm4ai-test
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
-    newTag: 2026.1-rc3
+    newTag: customer-dm4ai-test
