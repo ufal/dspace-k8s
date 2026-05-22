@@ -1,0 +1,81 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data-pvc
+spec:
+  storageClassName: hostpath
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dspace-postgres
+  labels:
+    app: dspace-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dspace-postgres
+  template:
+    metadata:
+      labels:
+        app: dspace-postgres
+    spec:
+      containers:
+        - name: postgres
+          # Drop-in replacement for postgres:16 with pgcrypto pre-installed
+          image: ufal/dspace-postgres-pgcrypto:2026.1.2
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: dspace
+            - name: POSTGRES_USER
+              value: dspace
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dspace-postgres-superuser
+                  key: password
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "dspace", "-d", "dspace"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-data-pvc
+---
+# Named dspace-postgres-rw to match db.url in local.cfg
+apiVersion: v1
+kind: Service
+metadata:
+  name: dspace-postgres-rw
+spec:
+  selector:
+    app: dspace-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres

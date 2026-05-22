@@ -1,0 +1,177 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+  - secrets.yaml
+  - postgres.yaml
+  - minio.yaml
+
+namespace: dspace-docker-desktop
+
+# -------------------------------------------------------------------------
+# Override local.cfg and config.yml with Docker Desktop–specific values.
+# Other configmap files (environment.prod.ts, user_exists.jsh) are kept
+# from the base unchanged.
+# -------------------------------------------------------------------------
+configMapGenerator:
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.cfg
+      - config.yml
+
+# -------------------------------------------------------------------------
+# Patches
+# -------------------------------------------------------------------------
+patches:
+  # ----- Remove cloud-specific resources that don't apply locally -----
+
+  # CloudNativePG cluster (replaced by plain postgres Deployment)
+  - patch: |-
+      $patch: delete
+      apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      metadata:
+        name: dspace-postgres
+    target:
+      group: postgresql.cnpg.io
+      kind: Cluster
+      name: dspace-postgres
+
+  # CNPG scheduled backup (no backup infrastructure locally)
+  - patch: |-
+      $patch: delete
+      apiVersion: postgresql.cnpg.io/v1
+      kind: ScheduledBackup
+      metadata:
+        name: dspace-postgres-daily-backup
+    target:
+      group: postgresql.cnpg.io
+      kind: ScheduledBackup
+      name: dspace-postgres-daily-backup
+
+  # Barman object store config (no S3 backup locally)
+  - patch: |-
+      $patch: delete
+      apiVersion: barmancloud.cnpg.io/v1
+      kind: ObjectStore
+      metadata:
+        name: dspace-barman-store
+    target:
+      group: barmancloud.cnpg.io
+      kind: ObjectStore
+      name: dspace-barman-store
+
+  # SealedSecrets replaced by plain Secrets above
+  - patch: |-
+      $patch: delete
+      apiVersion: bitnami.com/v1alpha1
+      kind: SealedSecret
+      metadata:
+        name: s3-assetstore-secret
+    target:
+      group: bitnami.com
+      kind: SealedSecret
+      name: s3-assetstore-secret
+
+  - patch: |-
+      $patch: delete
+      apiVersion: bitnami.com/v1alpha1
+      kind: SealedSecret
+      metadata:
+        name: dspace-postgres-superuser
+    target:
+      group: bitnami.com
+      kind: SealedSecret
+      name: dspace-postgres-superuser
+
+  - patch: |-
+      $patch: delete
+      apiVersion: bitnami.com/v1alpha1
+      kind: SealedSecret
+      metadata:
+        name: dspace-admin-secret
+    target:
+      group: bitnami.com
+      kind: SealedSecret
+      name: dspace-admin-secret
+
+  # ----- PVCs: switch from Ceph/NFS storage classes to Docker Desktop hostpath -----
+
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: hostpath
+    target:
+      kind: PersistentVolumeClaim
+      name: solr-data-pvc
+
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: hostpath
+      - op: replace
+        path: /spec/accessModes/0
+        value: ReadWriteOnce
+    target:
+      kind: PersistentVolumeClaim
+      name: dspace-logs-pvc-rwx
+
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: hostpath
+    target:
+      kind: PersistentVolumeClaim
+      name: tomcat-logs-pvc-rwx
+
+  # ----- Ingress: plain HTTP on dspace.localhost, no TLS -----
+
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dspace.localhost
+      - op: remove
+        path: /spec/tls
+      - op: remove
+        path: /metadata/annotations/kubernetes.io~1tls-acme
+      - op: remove
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+      - op: remove
+        path: /metadata/annotations/nginx.ingress.kubernetes.io~1enable-modsecurity
+      - op: remove
+        path: /metadata/annotations/nginx.ingress.kubernetes.io~1enable-owasp-core-rules
+    target:
+      kind: Ingress
+      name: dspace-ingress
+
+  # ----- Backend: hostname env var + reduced resource requests -----
+
+  - path: backend-deployment.yaml
+    target:
+      kind: Deployment
+      name: dspace-backend
+
+  # ----- Angular: reduced resource requests for local dev -----
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dspace-angular
+      spec:
+        template:
+          spec:
+            containers:
+              - name: dspace-angular
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: 2
+                    memory: 4Gi
+    target:
+      kind: Deployment
+      name: dspace-angular

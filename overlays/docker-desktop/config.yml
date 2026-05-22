@@ -1,0 +1,17 @@
+rest:
+  # Plain HTTP on dspace.localhost (no TLS on Docker Desktop)
+  ssl: false
+  host: dspace.localhost
+  port: 80
+  nameSpace: /server
+ui:
+  # SSR server runs HTTP internally
+  ssl: false
+  host: 0.0.0.0
+  port: 4000
+  nameSpace: /
+# Universal server-side settings
+universal:
+  preboot: true
+  async: true
+  time: false
