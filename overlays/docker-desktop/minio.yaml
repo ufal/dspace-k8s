@@ -80,6 +80,30 @@ spec:
       targetPort: 9001
       name: console
 ---
+---
+# Expose the MinIO console at http://minio.localhost
+# Add "minio.localhost" to /etc/hosts pointing at the ingress external IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-console-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: minio.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-service
+                port:
+                  number: 9001
+---
 # One-shot job to create the DSpace assetstore bucket in MinIO on first deploy.
 # Safe to re-run: --ignore-existing means it's a no-op if the bucket already exists.
 apiVersion: batch/v1
