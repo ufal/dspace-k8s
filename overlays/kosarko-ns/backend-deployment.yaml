@@ -10,3 +10,5 @@ spec:
           env:
             - name: dspace__P__hostname
               value: "ok-dspace.dyn.cloud.e-infra.cz"
+            - name: rest__P__cors__P__allowed__D__origins 
+              value: https://${dspace.hostname}, http://localhost:4000
