@@ -43,10 +43,10 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: dspace-7_x
+    newTag: customer-mj-test
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
-    newTag: dspace-7_x
+    newTag: customer-mj-test
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
-    newTag: dspace-7_x
+    newTag: customer-mj-test
