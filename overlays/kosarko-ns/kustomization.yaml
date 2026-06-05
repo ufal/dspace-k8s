@@ -48,6 +48,7 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
+    newTag: issue_-1343_PUT_and_DELETE_endpoints_for_Clarin_License_Labels
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
   - name: dataquest/dspace-angular
