@@ -6,6 +6,13 @@ resources:
 
 namespace: kosarko-ns   # <-- change to whatever you need
 
+configMapGenerator:
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.cfg
+      - submission-forms.xml
+
 #images:
 #  - name: dataquest/dspace
 #    newName: ufal/dspace
@@ -48,7 +55,7 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: issue_-1343_PUT_and_DELETE_endpoints_for_Clarin_License_Labels
+    newTag: issue-1351_simple_ror_authority
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
   - name: dataquest/dspace-angular
