@@ -1,0 +1,97 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ---------------------------------------------------------------------------
+# k3s-rootless overlay
+#
+# Local single-node dev on a *rootless* k3s cluster (no Docker Desktop).
+# It is intentionally a thin layer on top of the docker-desktop overlay,
+# which already does the local-dev substitutions we also want:
+#   - CloudNativePG  -> plain Postgres Deployment
+#   - SealedSecrets  -> plain Secrets
+#   - real S3        -> in-cluster MinIO
+#   - Ingress TLS    -> plain HTTP on dspace.localhost / minio.localhost
+#
+# Three things differ on rootless k3s, all handled below:
+#   1. Storage class: Docker Desktop's provisioner is named "hostpath";
+#      k3s's built-in local-path-provisioner is named "local-path".
+#   2. A distinct namespace so it can coexist with a docker-desktop deploy.
+#   3. External URLs carry :8080 — rootless can't bind privileged :80, so the
+#      ingress controller is exposed on non-privileged host port 8080. DSpace
+#      bakes the URL (incl. port) into redirects + CORS origins, so local.cfg
+#      and config.yml override the docker-desktop copies with the port.
+#
+# The Ingress objects themselves are inherited unchanged (ingressClassName:
+# nginx, the proxy-body-size 10g / timeout / buffering annotations, host
+# dspace.localhost, TLS removed) — nginx matches the host rule ignoring the
+# port, so only the app-facing URLs need it. Correct AS-IS *provided* the
+# cluster runs ingress-nginx (not k3s's bundled Traefik) exposed on host
+# 8080. See README.md for those operational, no-root prerequisites.
+# ---------------------------------------------------------------------------
+
+resources:
+  - ../docker-desktop
+
+namespace: dspace-k3s
+
+# Override the two config files that embed the external URL, replacing the
+# docker-desktop copies (which use :80) with :8080 variants. behavior: merge
+# swaps these keys in the inherited local-config-map; the other generated
+# files (environment.prod.ts, user_exists.jsh) pass through untouched.
+configMapGenerator:
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.cfg
+      - config.yml
+
+patches:
+  # Re-point both Ingress host rules from *.localhost (needs /etc/hosts -> root)
+  # to *.127.0.0.1.sslip.io, which resolves to 127.0.0.1 via public DNS with no
+  # hosts file and no root. nginx matches server_name ignoring the :8080 port.
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dspace.127.0.0.1.sslip.io
+    target:
+      kind: Ingress
+      name: dspace-ingress
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: minio.127.0.0.1.sslip.io
+    target:
+      kind: Ingress
+      name: minio-console-ingress
+
+  # docker-desktop sets the backend env var dspace__P__hostname=dspace.localhost.
+  # DSpace env vars OVERRIDE local.cfg, so without this it would clobber our
+  # sslip.io hostname at runtime (breaking CORS origins + redirects). Re-point it.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dspace-backend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: dspace
+                env:
+                  - name: dspace__P__hostname
+                    value: "dspace.127.0.0.1.sslip.io"
+    target:
+      kind: Deployment
+      name: dspace-backend
+
+  # Re-point every PVC from Docker Desktop's "hostpath" storage class to k3s's
+  # built-in "local-path". No name selector -> applies to all PVCs that flow
+  # through from the base + docker-desktop (solr-data-pvc, dspace-logs-pvc-rwx,
+  # tomcat-logs-pvc-rwx, postgres-data-pvc, minio-data-pvc). Without this they
+  # stay Pending forever because no "hostpath" provisioner exists on k3s.
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
+    target:
+      kind: PersistentVolumeClaim

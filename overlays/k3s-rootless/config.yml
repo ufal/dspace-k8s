@@ -1,0 +1,21 @@
+# PORT-SHIFTED COPY of overlays/docker-desktop/config.yml — only rest.port
+# differs (8080 instead of 80), to match the non-privileged host port the
+# ingress is exposed on under rootless k3s. Keep in sync with the
+# docker-desktop copy otherwise. ConfigMap merge replaces the whole file.
+rest:
+  # Plain HTTP on dspace.127.0.0.1.sslip.io:8080 (no TLS, non-privileged host port on rootless k3s)
+  ssl: false
+  host: dspace.127.0.0.1.sslip.io
+  port: 8080
+  nameSpace: /server
+ui:
+  # SSR server runs HTTP internally (in-cluster, unchanged)
+  ssl: false
+  host: 0.0.0.0
+  port: 4000
+  nameSpace: /
+# Universal server-side settings
+universal:
+  preboot: true
+  async: true
+  time: false
