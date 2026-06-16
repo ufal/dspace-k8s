@@ -98,12 +98,59 @@ systemd-run --user --scope -p Delegate=yes -- \
   k3s server --rootless --disable=traefik --snapshotter=fuse-overlayfs \
   --write-kubeconfig "$HOME/.kube/config" --write-kubeconfig-mode 600
 
-# For a persistent setup, install k3s's ~/.config/systemd/user/k3s-rootless.service
-# unit instead and `systemctl --user start k3s-rootless` — user units already
-# run under user@UID.service, so they get the delegation automatically.
-
 # 3. In another shell:
 export KUBECONFIG="$HOME/.kube/config"
+```
+
+The `systemd-run --user --scope` form is fine for a quick start but only lives
+as long as that transient scope. For a cluster that survives logout/reboot, use
+a `systemd --user` service instead — see §1b.
+
+### 1b. Persistent setup (systemd --user service)
+
+Create `~/.config/systemd/user/k3s-rootless.service`. `Delegate=yes` is the key
+line — it gives the unit the cgroup-v2 controllers (incl. `cpuset`), the
+unit-file equivalent of `systemd-run --user --scope -p Delegate=yes`. A user
+service runs under `user@UID.service`, so unlike a bare login shell it gets the
+delegation automatically.
+
+```ini
+[Unit]
+Description=k3s (rootless)
+After=default.target
+
+[Service]
+Type=simple
+# k3s lives in ~/.local/bin; rootless helpers (newuidmap/newgidmap,
+# slirp4netns, fuse-overlayfs) are in /usr/bin. Make both reachable.
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=%h/.local/bin/k3s server --rootless --disable=traefik --snapshotter=fuse-overlayfs --write-kubeconfig %h/.kube/config --write-kubeconfig-mode 600
+ExecReload=/bin/kill -s HUP $MAINPID
+Delegate=yes
+KillMode=mixed
+Restart=always
+RestartSec=2
+# k3s comes up asynchronously and re-execs through rootlesskit; don't time out.
+TimeoutStartSec=0
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=default.target
+```
+
+Enable it (the cluster state in `~/.rancher/k3s` persists, so an existing
+deployment survives the switch):
+
+```bash
+systemctl --user daemon-reload
+# if a transient-scope k3s is already running, stop it first so they don't
+# collide on the same data-dir/ports:
+systemctl --user stop "$(systemctl --user list-units --type=scope --all --no-legend | awk '/k3s server/{print $1}')" 2>/dev/null || true
+systemctl --user enable --now k3s-rootless
+
+# Survive logout AND reboot (without this the unit stops when your last
+# session ends). Over SSH this usually needs admin/polkit auth:
+loginctl enable-linger "$(whoami)"
 ```
 
 ### 2. Install ingress-nginx, exposed on host port 8080
