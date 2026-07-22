@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The reconciler that keeps ok-dspace in sync with `main`. Applied SEPARATELY
+# and MANUALLY — it is environment infrastructure, not part of the DSpace stack
+# in ../overlays/kosarko-ns, and it deliberately does not reconcile itself: a
+# broken change here would otherwise be unable to fix itself.
+#
+#   kubectl apply -k ci-reconcile/
+#
+# Needs no secret of any kind — the repository is public and the apply uses the
+# pod's own ServiceAccount token. See README.md.
+namespace: kosarko-ns
+
+resources:
+  - serviceaccount.yaml
+  - role.yaml
+  - rolebinding.yaml
+  - cronjob.yaml
