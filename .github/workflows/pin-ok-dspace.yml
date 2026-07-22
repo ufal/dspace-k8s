@@ -121,20 +121,16 @@ jobs:
             fi
           done
 
-          # A tag is not necessarily a commit sha: `workflow_dispatch` accepts
-          # any image tag, and main currently pins a branch-name tag. Only a
-          # sha can be checked against what the deployed app reports, so emit
-          # these separately - verify gates on the sha outputs and falls back
-          # to a reachability-only check when they are empty. Passing a
-          # branch-name tag through would fail verify's sha validation and turn
-          # a perfectly good deploy red.
-          # Full 40 hex only, NOT verify's {7,40}. An all-hex short tag - a date
-          # like `20260722` is the realistic one - would otherwise classify as a
-          # sha, and verify would then poll 35 minutes for a commit that does
-          # not exist and fail a perfectly good deploy. `github.sha` is always
-          # 40 chars and a human pinning a sha pastes the whole thing, so
-          # nothing legitimate is lost here. Verify keeps {7,40} because a short
-          # sha is a reasonable thing to type into ITS dispatch form.
+          # A tag is not necessarily a commit sha - workflow_dispatch accepts
+          # any image tag - and only a sha can be checked against what the
+          # deployed application reports. Emit them separately so verify gates
+          # on the sha outputs and falls back to a reachability-only check when
+          # they are empty, instead of failing a good deploy.
+          #
+          # Full 40 hex here, NOT verify's {7,40}: an all-hex short tag such as
+          # a date (`20260722`) would otherwise be treated as a sha that does
+          # not exist. `github.sha` is always 40 characters, so nothing
+          # legitimate is lost.
           sha_or_empty() {
             printf '%s' "$1" | grep -qE '^[0-9a-fA-F]{40}$' && printf '%s' "$1" || true
           }
@@ -240,7 +236,7 @@ jobs:
         env:
           BACKEND_TAG: ${{ steps.resolve.outputs.backend_tag }}
           FRONTEND_TAG: ${{ steps.resolve.outputs.frontend_tag }}
-          SOURCE_REPO: ${{ github.event.client_payload.component == 'frontend' && 'ufal/dspace-angular' || 'ufal/clarin-dspace' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           # Commit BEFORE anything reaches the cluster. This is the whole point
@@ -252,13 +248,29 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if [ -n "${BACKEND_TAG}" ]; then
-            MSG="ok-dspace: backend -> ${BACKEND_TAG:0:12}"
+          # Both tags can be set at once by a manual dispatch, so build the
+          # subject from whatever actually changed rather than assuming one.
+          WHAT=""
+          [ -n "${BACKEND_TAG}" ]  && WHAT="backend -> ${BACKEND_TAG:0:12}"
+          [ -n "${FRONTEND_TAG}" ] && WHAT="${WHAT:+${WHAT}, }frontend -> ${FRONTEND_TAG:0:12}"
+          MSG="ok-dspace: ${WHAT}"
+
+          # Attribute the pin to what actually triggered it. Deriving this from
+          # client_payload alone would credit ufal/clarin-dspace for every
+          # manual run, including frontend-only ones, because the payload is
+          # empty on workflow_dispatch.
+          if [ "${EVENT_NAME}" = "repository_dispatch" ]; then
+            if [ -n "${BACKEND_TAG}" ]; then
+              TRIGGER="a dispatch from ufal/clarin-dspace"
+            else
+              TRIGGER="a dispatch from ufal/dspace-angular"
+            fi
           else
-            MSG="ok-dspace: frontend -> ${FRONTEND_TAG:0:12}"
+            TRIGGER="a manual ${EVENT_NAME}"
           fi
+
           git add "${OVERLAY}/kustomization.yaml"
-          git commit -m "${MSG}" -m "Pinned by ${GITHUB_WORKFLOW} run ${GITHUB_RUN_ID} from ${SOURCE_REPO}."
+          git commit -m "${MSG}" -m "Pinned by ${GITHUB_WORKFLOW} run ${GITHUB_RUN_ID}, from ${TRIGGER}."
 
           # Retry against a concurrent push to main. The concurrency group makes
           # this unlikely, but a lost push means the deploy silently never

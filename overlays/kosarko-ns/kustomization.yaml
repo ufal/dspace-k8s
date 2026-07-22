@@ -48,13 +48,16 @@ patches:
         path: /spec/rules/0/host
         value: "ok-dspace.dyn.cloud.e-infra.cz"
 # The newTag values below are MAINTAINED BY CI, by
-# .github/workflows/pin-ok-dspace.yml. They are pinned to the git SHA of the
-# source commit that produced the image, so this file records exactly what is
-# deployed. Hand-edits survive only until the next pin of that component.
+# .github/workflows/pin-ok-dspace.yml. An automated pin writes the git SHA of
+# the source commit that produced the image, so this file records which commit
+# is deployed - but the value is an image TAG, not necessarily a SHA: a manual
+# pin may set any tag, and an entry with no newTag at all inherits from
+# ../../k8s until CI first pins it. Read it as "the tag this environment runs",
+# and check the running version at /server/api and /static/VERSION_D if you
+# need certainty. Hand-edits survive only until the next pin of that component.
 #
 # dspace + dspace-solr are built from the same ufal/clarin-dspace commit, so
-# they always move together. dspace-angular moves independently. An entry with
-# no newTag inherits the tag from ../../k8s until CI first pins it.
+# they always move together. dspace-angular moves independently.
 #
 # THE `name:` VALUES ARE SELECTOR KEYS, NOT IMAGE NAMES. CI matches on
 # `dataquest/dspace` (the pre-rename name from ../../k8s) and rewrites newTag on

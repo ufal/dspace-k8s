@@ -11,4 +11,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: dspace-deployer
-    # namespace is injected by the kustomization
+    # Filled in by the kustomization's `namespace:` field. RBAC would also
+    # default an omitted ServiceAccount namespace to the RoleBinding's own, so
+    # this is explicitness rather than necessity.
