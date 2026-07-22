@@ -97,7 +97,7 @@ jobs:
           # changes - so matching the first 40-hex on the page would report a
           # stale frontend as up to date. Never relax this to a bare hex match.
           extract_sha() {
-            grep -oE 'Git hash:.{0,120}' | head -1 | grep -oE '[0-9a-f]{40}' | head -1 || true
+            grep -oE 'Git hash:.{0,120}' | head -1 | grep -oiE '[0-9a-f]{40}' | head -1 || true
           }
 
           probe_backend() {

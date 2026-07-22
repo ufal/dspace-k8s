@@ -49,6 +49,10 @@ env:
   OVERLAY: overlays/kosarko-ns
   PUBLIC_URL: https://ok-dspace.dyn.cloud.e-infra.cz
   YQ_VERSION: v4.53.3
+  # SHA-256 of yq_linux_amd64 for YQ_VERSION, from that release's own
+  # `checksums` asset. Update BOTH together - a version bump with a stale
+  # checksum fails the install step, which is the intended behaviour.
+  YQ_SHA256: fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4
 
 jobs:
   pin:
@@ -81,6 +85,11 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/bin"
           curl -fsSL -o "${RUNNER_TEMP}/bin/yq" \
             "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          # This job holds contents:write on the repository, so an unverified
+          # binary fetched over the network would be arbitrary code execution
+          # with permission to commit to main. Pinning the version alone does
+          # not help: release assets can be replaced.
+          echo "${YQ_SHA256}  ${RUNNER_TEMP}/bin/yq" | sha256sum -c -
           chmod +x "${RUNNER_TEMP}/bin/yq"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
 
@@ -100,6 +109,15 @@ jobs:
           FRONTEND_TAG=""
 
           if [ "${EVENT_NAME}" = "repository_dispatch" ]; then
+            # This path exists to carry the commit that produced the image, and
+            # the app repos always send `github.sha`. Requiring a full sha here
+            # - rather than accepting any tag, as a manual pin may - keeps an
+            # accidental or hostile dispatch from pinning some other existing
+            # tag, and guarantees `verify` always has something to assert.
+            if ! printf '%s' "${PAYLOAD_SHA}" | grep -qE '^[0-9a-fA-F]{40}$'; then
+              echo "::error::client_payload.sha must be a full 40-character commit sha, got: '${PAYLOAD_SHA}'"
+              exit 1
+            fi
             case "${PAYLOAD_COMPONENT}" in
               backend)  BACKEND_TAG="${PAYLOAD_SHA}" ;;
               frontend) FRONTEND_TAG="${PAYLOAD_SHA}" ;;

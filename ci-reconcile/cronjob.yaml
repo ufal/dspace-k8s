@@ -56,9 +56,16 @@ spec:
         spec:
           serviceAccountName: dspace-deployer
           restartPolicy: Never
-          # PodSecurity `restricted` is enforced cluster-wide on this cluster,
-          # and NOT advertised by namespace labels - do not conclude from
-          # absent labels that it is off. Every field below is required by it.
+          # PodSecurity `restricted` is enforced cluster-wide here and is NOT
+          # advertised by namespace labels - do not conclude from absent labels
+          # that it is off.
+          #
+          # The policy itself mandates only `runAsNonRoot: true`, the
+          # `seccompProfile`, `allowPrivilegeEscalation: false`,
+          # `capabilities.drop: ["ALL"]`, and an allowed volume type (emptyDir
+          # qualifies). The explicit uid/gid below are ours, so the pod runs as
+          # a known non-root user rather than whatever the image defaults to.
+          # No fsGroup is needed: an emptyDir is created world-writable.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1001
