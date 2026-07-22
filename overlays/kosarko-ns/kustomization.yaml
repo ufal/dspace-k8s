@@ -55,7 +55,7 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: issue-1351_simple_ror_authority
+    newTag: issue_-1360_change_license_in_workflow_item
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
   - name: dataquest/dspace-angular
