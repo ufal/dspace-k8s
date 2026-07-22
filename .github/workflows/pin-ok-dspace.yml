@@ -1,0 +1,317 @@
+# Pins the image tags the ok-dspace test environment should run, and commits
+# them to `main`.
+#
+# THIS WORKFLOW DOES NOT TOUCH THE CLUSTER. It records desired state in git;
+# the in-cluster CronJob in ci-reconcile/ notices and applies it, and
+# verify-ok-dspace.yml confirms the result over the public URL. That split is
+# what keeps every cluster credential out of GitHub and every GitHub credential
+# out of the cluster - see ci-reconcile/README.md.
+#
+# Triggered manually, or by repository_dispatch from the Docker image builds in
+# ufal/clarin-dspace and ufal/dspace-angular (see their docker.yml).
+#
+# DELIBERATELY has no `on: push` trigger: it commits to main, and a push
+# trigger would make it re-trigger itself.
+name: Pin ok-dspace image tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_tag:
+        description: "Tag for ufal/dspace + ufal/dspace-solr (blank = keep the committed tag)"
+        required: false
+        type: string
+      frontend_tag:
+        description: "Tag for ufal/dspace-angular (blank = keep the committed tag)"
+        required: false
+        type: string
+  repository_dispatch:
+    types: [deploy-ok-dspace]
+
+# Serialize: two dispatches must never race to push to main.
+#
+# KNOWN TRADEOFF, chosen deliberately. The group is shared across both
+# components, and GitHub keeps at most one running + one pending run per group -
+# a newly queued run cancels the pending one. So three overlapping runs (each up
+# to ~35m because `verify` is in the same workflow) can cancel a middle pin,
+# which then silently never happens until that component is pushed again.
+# Per-component groups would fix that, but they reintroduce the concurrent-push
+# race on main that this group exists to prevent. Shared is the safer default at
+# this deploy frequency; revisit if pins ever overlap in practice.
+concurrency:
+  group: pin-ok-dspace
+  cancel-in-progress: false
+
+permissions:
+  contents: write # commit the resolved image tag back to main
+
+env:
+  OVERLAY: overlays/kosarko-ns
+  PUBLIC_URL: https://ok-dspace.dyn.cloud.e-infra.cz
+  YQ_VERSION: v4.53.3
+
+jobs:
+  pin:
+    if: github.repository == 'ufal/dspace-k8s'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Consumed by the verify job below.
+    outputs:
+      backend_tag: ${{ steps.resolve.outputs.backend_tag }}
+      frontend_tag: ${{ steps.resolve.outputs.frontend_tag }}
+      # Empty unless the tag is a commit sha - see `resolve`.
+      backend_sha: ${{ steps.resolve.outputs.backend_sha }}
+      frontend_sha: ${{ steps.resolve.outputs.frontend_sha }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # Kept even though ubuntu-latest ships a yq, because the VERSION is the
+      # point: the overlay was pre-normalised to v4.53.3's exact output so that
+      # every generated commit is a clean one-line tag change. A different yq
+      # could reformat the whole file on the first write.
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/bin"
+          curl -fsSL -o "${RUNNER_TEMP}/bin/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          chmod +x "${RUNNER_TEMP}/bin/yq"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve requested image tags
+        id: resolve
+        env:
+          # Passed through the environment rather than interpolated straight
+          # into the script: client_payload is external input.
+          EVENT_NAME: ${{ github.event_name }}
+          PAYLOAD_COMPONENT: ${{ github.event.client_payload.component }}
+          PAYLOAD_SHA: ${{ github.event.client_payload.sha }}
+          INPUT_BACKEND_TAG: ${{ inputs.backend_tag }}
+          INPUT_FRONTEND_TAG: ${{ inputs.frontend_tag }}
+        run: |
+          set -euo pipefail
+          BACKEND_TAG=""
+          FRONTEND_TAG=""
+
+          if [ "${EVENT_NAME}" = "repository_dispatch" ]; then
+            case "${PAYLOAD_COMPONENT}" in
+              backend)  BACKEND_TAG="${PAYLOAD_SHA}" ;;
+              frontend) FRONTEND_TAG="${PAYLOAD_SHA}" ;;
+              *)
+                echo "::error::unknown client_payload.component: '${PAYLOAD_COMPONENT}' (expected backend|frontend)"
+                exit 1 ;;
+            esac
+          else
+            BACKEND_TAG="${INPUT_BACKEND_TAG}"
+            FRONTEND_TAG="${INPUT_FRONTEND_TAG}"
+          fi
+
+          # Reject anything that is not a plausible tag before it reaches yq
+          # or curl.
+          for t in "${BACKEND_TAG}" "${FRONTEND_TAG}"; do
+            if [ -n "$t" ] && ! printf '%s' "$t" | grep -qE '^[A-Za-z0-9._-]{1,128}$'; then
+              echo "::error::refusing malformed image tag: '$t'"
+              exit 1
+            fi
+          done
+
+          # A tag is not necessarily a commit sha: `workflow_dispatch` accepts
+          # any image tag, and main currently pins a branch-name tag. Only a
+          # sha can be checked against what the deployed app reports, so emit
+          # these separately - verify gates on the sha outputs and falls back
+          # to a reachability-only check when they are empty. Passing a
+          # branch-name tag through would fail verify's sha validation and turn
+          # a perfectly good deploy red.
+          # Full 40 hex only, NOT verify's {7,40}. An all-hex short tag - a date
+          # like `20260722` is the realistic one - would otherwise classify as a
+          # sha, and verify would then poll 35 minutes for a commit that does
+          # not exist and fail a perfectly good deploy. `github.sha` is always
+          # 40 chars and a human pinning a sha pastes the whole thing, so
+          # nothing legitimate is lost here. Verify keeps {7,40} because a short
+          # sha is a reasonable thing to type into ITS dispatch form.
+          sha_or_empty() {
+            printf '%s' "$1" | grep -qE '^[0-9a-fA-F]{40}$' && printf '%s' "$1" || true
+          }
+
+          {
+            echo "backend_tag=${BACKEND_TAG}"
+            echo "frontend_tag=${FRONTEND_TAG}"
+            echo "backend_sha=$(sha_or_empty "${BACKEND_TAG}")"
+            echo "frontend_sha=$(sha_or_empty "${FRONTEND_TAG}")"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved: backend='${BACKEND_TAG}' frontend='${FRONTEND_TAG}'"
+
+      - name: Verify the requested tags exist on Docker Hub
+        if: steps.resolve.outputs.backend_tag != '' || steps.resolve.outputs.frontend_tag != ''
+        env:
+          BACKEND_TAG: ${{ steps.resolve.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ steps.resolve.outputs.frontend_tag }}
+        run: |
+          set -euo pipefail
+          # A fast-fail convenience, not the load-bearing guard - `verify` is
+          # that. On the dispatch path the image exists by construction, so this
+          # really only catches typos in a manual dispatch, ~30 minutes earlier
+          # than verify would. It can also fail a good deploy on a Docker Hub
+          # rate limit: delete it rather than work around it if that bites.
+          check() {
+            repo="$1"; tag="$2"
+            token="$(curl -fsSL "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull" | jq -r .token)"
+            if curl -fsSL -o /dev/null -I \
+                 -H "Authorization: Bearer ${token}" \
+                 -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                 -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                 -H "Accept: application/vnd.oci.image.index.v1+json" \
+                 -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+                 "https://registry-1.docker.io/v2/${repo}/manifests/${tag}"; then
+              echo "  OK  ${repo}:${tag}"
+            else
+              echo "::error::${repo}:${tag} does not exist on Docker Hub - refusing to pin it"
+              exit 1
+            fi
+          }
+          if [ -n "${BACKEND_TAG}" ]; then
+            check ufal/dspace      "${BACKEND_TAG}"
+            check ufal/dspace-solr "${BACKEND_TAG}"
+          fi
+          if [ -n "${FRONTEND_TAG}" ]; then
+            check ufal/dspace-angular "${FRONTEND_TAG}"
+          fi
+
+      - name: Pin the tags in the overlay
+        id: pin
+        env:
+          BACKEND_TAG: ${{ steps.resolve.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ steps.resolve.outputs.frontend_tag }}
+        run: |
+          set -euo pipefail
+          # yq, not `kustomize edit set image`: the latter drops the comments
+          # documenting the overlay. Note that yq reformats too - it strips
+          # blank lines and normalises inline comment spacing - which is why the
+          # overlay was pre-normalised to yq's canonical form in a reviewed
+          # commit. The property being relied on is COMMENT PRESERVATION, not
+          # "leaves the file alone".
+          #
+          # Each dispatch rewrites ONLY its own component's tag. That is what
+          # stops a backend deploy from reasserting a stale frontend tag.
+          set_tag() {
+            name="$1"; tag="$2"
+            # yq exits 0 and writes nothing when the selector matches nothing,
+            # so a renamed or removed `images:` entry would silently disable
+            # this workflow: no diff, changed=false, and the run goes green
+            # reporting "already at the requested version". Assert the key
+            # exists first. The names are kustomize selector keys from
+            # ../../k8s (`dataquest/*`), not the `ufal/*` image names, which is
+            # exactly why this is easy to get wrong.
+            n="$(NAME="$name" yq '[.images[] | select(.name == strenv(NAME))] | length' \
+                 "${OVERLAY}/kustomization.yaml")"
+            if [ "$n" != 1 ]; then
+              echo "::error::expected exactly 1 images entry named '${name}' in ${OVERLAY}/kustomization.yaml, found ${n}"
+              exit 1
+            fi
+            NAME="$name" TAG="$tag" yq -i \
+              '(.images[] | select(.name == strenv(NAME))).newTag = strenv(TAG)' \
+              "${OVERLAY}/kustomization.yaml"
+          }
+          if [ -n "${BACKEND_TAG}" ]; then
+            # One repo, one build, one SHA - these two always move together.
+            set_tag dataquest/dspace       "${BACKEND_TAG}"
+            set_tag dataquest/dspace-solr  "${BACKEND_TAG}"
+          fi
+          if [ -n "${FRONTEND_TAG}" ]; then
+            set_tag dataquest/dspace-angular "${FRONTEND_TAG}"
+          fi
+
+          if git diff --quiet -- "${OVERLAY}/kustomization.yaml"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No tag change (already at the requested version)."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff -- "${OVERLAY}/kustomization.yaml"
+          fi
+
+      - name: Commit the pinned tags
+        if: ${{ steps.pin.outputs.changed == 'true' }}
+        env:
+          BACKEND_TAG: ${{ steps.resolve.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ steps.resolve.outputs.frontend_tag }}
+          SOURCE_REPO: ${{ github.event.client_payload.component == 'frontend' && 'ufal/dspace-angular' || 'ufal/clarin-dspace' }}
+        run: |
+          set -euo pipefail
+          # Commit BEFORE anything reaches the cluster. This is the whole point
+          # of the pull model: git is the desired state, so the worst case is
+          # "git ahead of cluster", which the next reconcile closes by itself.
+          # The old push-based design committed only after a green rollout and
+          # so could leave the cluster ahead of git - a state the next deploy of
+          # the other component would silently roll back.
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "${BACKEND_TAG}" ]; then
+            MSG="ok-dspace: backend -> ${BACKEND_TAG:0:12}"
+          else
+            MSG="ok-dspace: frontend -> ${FRONTEND_TAG:0:12}"
+          fi
+          git add "${OVERLAY}/kustomization.yaml"
+          git commit -m "${MSG}" -m "Pinned by ${GITHUB_WORKFLOW} run ${GITHUB_RUN_ID} from ${SOURCE_REPO}."
+
+          # Retry against a concurrent push to main. The concurrency group makes
+          # this unlikely, but a lost push means the deploy silently never
+          # happens - there is no other channel to the cluster.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "Pushed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Push failed (attempt ${attempt}); rebasing and retrying..."
+            # `|| git rebase --abort` is load-bearing. A conflicting rebase
+            # leaves HEAD detached at the new upstream tip, where the CI commit
+            # no longer exists - so the next `git push origin HEAD:main` reports
+            # "Everything up-to-date" and EXITS 0. The loop would then announce
+            # a successful push having pushed nothing, which is precisely the
+            # silent-non-deploy this retry exists to prevent. Aborting puts HEAD
+            # back on the CI commit so the next attempt fails honestly.
+            git pull --rebase origin main || git rebase --abort || true
+          done
+          echo "::error::Could not push the pinned tag, so the deploy will not happen."
+          exit 1
+
+      - name: Summary
+        if: always()
+        env:
+          BACKEND_TAG: ${{ steps.resolve.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ steps.resolve.outputs.frontend_tag }}
+          CHANGED: ${{ steps.pin.outputs.changed }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## ok-dspace pin"
+            echo
+            echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
+            [ -n "${BACKEND_TAG}" ]  && echo "- Backend: \`${BACKEND_TAG}\` (ufal/clarin-dspace)"  || true
+            [ -n "${FRONTEND_TAG}" ] && echo "- Frontend: \`${FRONTEND_TAG}\` (ufal/dspace-angular)" || true
+            echo "- Tag changed: \`${CHANGED:-unknown}\`"
+            echo "- URL: ${PUBLIC_URL}"
+            echo
+            echo "The in-cluster reconciler applies this within ~5 minutes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Confirms the environment really ends up serving what was just pinned. This
+  # is the only signal that the deploy worked: nothing in the pin job can see
+  # the cluster, by design.
+  verify:
+    needs: pin
+    uses: ./.github/workflows/verify-ok-dspace.yml
+    with:
+      backend_sha: ${{ needs.pin.outputs.backend_sha }}
+      frontend_sha: ${{ needs.pin.outputs.frontend_sha }}
+      # Must cover the reconcile interval (up to 5m) plus a full backend
+      # restart, for which the reconciler itself allows 20m - it re-runs
+      # `database migrate` and `index-discovery -b`. 35 leaves margin over that
+      # ~25m worst case rather than racing it.
+      timeout_minutes: 35
