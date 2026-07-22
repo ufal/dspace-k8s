@@ -154,6 +154,8 @@ Resource limits and requests have been calibrated based on production metrics (d
 The repository ships with a small helper script **`init_overlay.sh`** that automates the creation of a Kustomize overlay from a set of `*.yaml.template` files located in `overlays/template`.
 It also ships with a sample overlay setup (inited by the script) in `overlays/kosarko-ns`.
 
+> **Note:** `overlays/kosarko-ns` is no longer just a sample — it is the **ok-dspace test environment**, deployed automatically by CI. See [Continuous deployment](#continuous-deployment-ok-dspace) below. Its `images[].newTag` values are maintained by the pin workflow, and the whole overlay is re-applied to the cluster every five minutes by an in-cluster reconciler — so hand-edits to either the file or the running objects are reverted. If you want a fresh sample overlay to copy, run `init_overlay.sh` with a new name.
+
 #### Using the newly‑created overlay
 
 Once the overlay exists you can apply the whole stack with a single `kubectl apply -k` command, pointing at the overlay directory:
@@ -174,6 +176,55 @@ If you need to change **only** the namespace, hostname, or TLS secret name you c
 If you modify the original template files, delete the existing overlay directory (or rename it) and run the script again to regenerate fresh manifests.
 
 *The `init_overlay.sh` script is intentionally lightweight and has **no external dependencies** beyond Bash, `envsubst` (part of the GNU `gettext` package), and standard Unix utilities. It is safe to run on any POSIX‑compatible shell.*
+
+## Continuous deployment (ok-dspace)
+
+`overlays/kosarko-ns` — <https://ok-dspace.dyn.cloud.e-infra.cz>, namespace `kosarko-ns` — redeploys
+automatically. Other overlays are unaffected and remain manual.
+
+**Triggers**
+
+| Trigger | Effect |
+|---|---|
+| Push to `clarin-v7` in `ufal/clarin-dspace` | after the images build, pins `ufal/dspace` + `ufal/dspace-solr` to that commit SHA |
+| Push to `clarin-v7` in `ufal/dspace-angular` | after the image builds, pins `ufal/dspace-angular` to that commit SHA |
+| Manual `workflow_dispatch` | pin explicit tags, or re-verify what is already committed |
+
+**It is pull-based.** Nothing pushes into the cluster. Three pieces:
+
+1. Each app repo's `docker.yml` ends with a `deploy-ok-dspace` job that sends a `repository_dispatch`
+   here — so **no cluster credential exists in the application repositories**.
+2. [`.github/workflows/pin-ok-dspace.yml`](.github/workflows/pin-ok-dspace.yml) resolves the tag,
+   checks it really exists on Docker Hub, and commits it to `main`. It runs on `ubuntu-latest` and
+   **never touches the cluster**.
+3. A CronJob inside `kosarko-ns` pulls `main` every five minutes and applies it — see
+   [`ci-reconcile/README.md`](ci-reconcile/README.md) for the bootstrap, the RBAC scoping, the
+   security posture, and how to pause or kick it.
+
+The result: **no cluster credential in GitHub, and no GitHub credential in the cluster.** The
+repository is public, so the reconciler needs no token to read it, and it applies with its own
+in-cluster ServiceAccount.
+
+**How versions are tracked.** The pin workflow rewrites only *its own* component's tag in
+`overlays/kosarko-ns/kustomization.yaml`, so a backend deploy can never reassert a stale frontend
+tag. Because the commit lands *before* the cluster changes, git is the desired state and the cluster
+converges to it. Both components report the commit they are actually running:
+
+```bash
+curl -s https://ok-dspace.dyn.cloud.e-infra.cz/server/api | jq -r .buildVersion
+curl -s https://ok-dspace.dyn.cloud.e-infra.cz/static/VERSION_D | grep -o 'Git hash:.*'
+```
+
+[`verify-ok-dspace.yml`](.github/workflows/verify-ok-dspace.yml) polls exactly those after every pin,
+from GitHub, over the public URL — so a green check means the public site really serves the new
+commit, through real DNS, ingress and TLS.
+
+**Hand edits do not survive.** The reconciler re-applies `main` every five minutes, so anything
+patched directly into the cluster is reverted. Suspend the CronJob first if you need it to persist
+(see `ci-reconcile/README.md`).
+
+**Deploys are non-destructive** — no database, Solr or S3 wipe. The backend's `database migrate
+force` init container keeps the schema tracking the code without one.
 
 ## Pre-Deployment Configuration (when not using overlays)
 
