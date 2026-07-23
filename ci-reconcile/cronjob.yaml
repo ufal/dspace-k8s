@@ -1,0 +1,155 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ok-dspace-reconcile
+  labels:
+    app: ok-dspace-reconcile
+# Pulls the current state of ufal/dspace-k8s `main` and applies it to this
+# namespace. Nothing pushes into the cluster: this reconciler is the only thing
+# that applies, and it reaches out over plain HTTPS.
+#
+# Consequences worth understanding before changing anything here:
+#
+#   * NO CREDENTIAL OF ANY KIND. The repository is public, so the fetch is
+#     anonymous, and the apply uses this pod's own projected ServiceAccount
+#     token. There is no GitHub token in the cluster and no kubeconfig in
+#     GitHub. Keep it that way: if this ever needs a private repo, use a
+#     read-only deploy key in a SealedSecret, never a PAT.
+#   * `main` IS THE DESIRED STATE. Anything applied by hand is reverted within
+#     one interval. That is the point - it makes drift self-correcting - but it
+#     will undo your debugging. To pause:
+#         kubectl patch cronjob/ok-dspace-reconcile -n kosarko-ns \
+#           -p '{"spec":{"suspend":true}}'
+#     and remember to unsuspend.
+#   * A BROKEN main IS DEPLOYED FAITHFULLY. The guard against that is the pin
+#     workflow (which verifies image tags exist before committing) plus review
+#     of anything else landing on main - not this job.
+spec:
+  # Deploy latency is up to one interval on top of the image build. Five
+  # minutes is a deliberate compromise for a test environment; for an immediate
+  # deploy, kick it by hand:
+  #   kubectl create job -n kosarko-ns --from=cronjob/ok-dspace-reconcile \
+  #     ok-dspace-reconcile-manual-$(date +%s)
+  schedule: "*/5 * * * *"
+  # A reconcile can take 20+ minutes when the backend actually restarts, which
+  # is far longer than the interval. Overlapping applies of the same manifests
+  # would fight each other, so skip the tick instead.
+  concurrencyPolicy: Forbid
+  # If the controller was down, do not stampede through every missed tick.
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # No retries: the next tick is the retry, five minutes away, and a
+      # retry loop against a genuinely broken manifest just adds noise.
+      backoffLimit: 0
+      # Must EXCEED the rollout waits below, which are sequential and total
+      # 40m (20 + 10 + 10), plus the fetch. 45m leaves margin; anything under
+      # 40m would kill a legitimately slow reconcile mid-wait and report it as
+      # a failure. Keep this in step if those timeouts change.
+      activeDeadlineSeconds: 2700
+      template:
+        metadata:
+          labels:
+            app: ok-dspace-reconcile
+        spec:
+          serviceAccountName: dspace-deployer
+          restartPolicy: Never
+          # PodSecurity `restricted` is enforced cluster-wide here and is NOT
+          # advertised by namespace labels - do not conclude from absent labels
+          # that it is off.
+          #
+          # The policy itself mandates only `runAsNonRoot: true`, the
+          # `seccompProfile`, `allowPrivilegeEscalation: false`,
+          # `capabilities.drop: ["ALL"]`, and an allowed volume type (emptyDir
+          # qualifies). The explicit uid/gid below are ours, so the pod runs as
+          # a known non-root user rather than whatever the image defaults to.
+          # No fsGroup is needed: an emptyDir is created world-writable.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            # The image runs read-only-ish as a non-root user; give the
+            # extracted tree somewhere writable that dies with the pod.
+            - name: workspace
+              emptyDir: {}
+          containers:
+            - name: reconcile
+              # kubectl + curl + tar in one small image. Pinned to the same
+              # minor the CI workflows use. kubectl must stay within one minor
+              # of the API server - confirm the cluster version before bumping
+              # across a minor (1.36+); patch bumps are safe.
+              image: docker.io/alpine/k8s:1.35.6
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              env:
+                # uid 1001 has no /etc/passwd entry in this image, so HOME
+                # would default to `/` (root-owned) and kubectl's discovery
+                # cache write would fail there. Point it at the writable
+                # emptyDir instead.
+                - name: HOME
+                  value: /workspace
+                - name: NAMESPACE
+                  value: kosarko-ns
+                - name: OVERLAY
+                  value: overlays/kosarko-ns
+                - name: TARBALL
+                  value: https://github.com/ufal/dspace-k8s/archive/refs/heads/main.tar.gz
+              volumeMounts:
+                - name: workspace
+                  mountPath: /workspace
+              workingDir: /workspace
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+
+                  echo "Fetching ${TARBALL}"
+                  # Downloaded to a file and THEN extracted, deliberately not
+                  # piped: in `curl ... | tar ...` the exit status of curl is
+                  # discarded, so a truncated download would extract a partial
+                  # tree and be applied as if it were complete. Two steps make
+                  # both failures fatal without relying on `pipefail` being
+                  # available in the container's shell.
+                  curl -fsSL --retry 3 --retry-delay 5 -o repo.tar.gz "${TARBALL}"
+
+                  # --strip-components=1 drops the `dspace-k8s-main/` wrapper
+                  # GitHub adds, so paths match the repository layout - which
+                  # matters because the overlay bases on ../../k8s.
+                  mkdir -p src
+                  tar xzf repo.tar.gz --strip-components=1 -C src
+                  rm -f repo.tar.gz
+
+                  cd src
+
+                  echo "Applying ${OVERLAY}"
+                  # Every object in the overlay carries an explicit namespace,
+                  # so this does not depend on the pod's default namespace.
+                  # Apply is a no-op when nothing changed, which is the normal
+                  # case on most ticks.
+                  kubectl apply -k "${OVERLAY}"
+
+                  # Returns immediately when the workload is already at its
+                  # desired state, so this only actually waits after a change.
+                  # The backend re-runs `database migrate` plus a full
+                  # `index-discovery -b` on start, hence the generous timeout.
+                  kubectl rollout status deployment/dspace-backend -n "${NAMESPACE}" --timeout=20m
+                  kubectl rollout status deployment/dspace-angular -n "${NAMESPACE}" --timeout=10m
+                  kubectl rollout status statefulset/dspace-solr   -n "${NAMESPACE}" --timeout=10m
+
+                  echo "Reconciled."

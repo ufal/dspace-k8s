@@ -1,0 +1,86 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dspace-deployer
+  labels:
+    app: ok-dspace-reconcile
+# Scoped to exactly what `kubectl apply -k overlays/kosarko-ns` plus
+# `kubectl rollout status` actually call. Deliberately NOT the built-in `edit`
+# ClusterRole.
+#
+# READ THIS FIRST: **RBAC cannot bound whatever holds this token.** Applying an
+# image tag requires `patch` on Deployments, and patching a workload rewrites
+# its pod template - so the absence of `create`, or of `secrets` access, stops
+# no determined caller. The full argument, and what the real boundary is, lives
+# in ci-reconcile/README.md under "Permissions". Do not re-derive it here.
+#
+# What this Role does buy is protection against *bugs*. The per-rule comments
+# below mark which granted verbs are load-bearing and which are hygiene - but an
+# absent verb has no rule to hang a comment on, so the two that matter most are
+# here:
+#   * no `delete` on anything -> the deploy path cannot destroy the environment
+#     or its PVCs, and this is the one guarantee that holds even against a
+#     compromised reconciler. Do NOT grant it to solve the ConfigMap
+#     accumulation noted below.
+#   * no `roles`/`rolebindings`/`resourcequotas` -> the blast radius cannot be
+#     widened from inside kosarko-ns.
+#
+# Known costs:
+#   * no `delete`: the hashed ConfigMaps produced by configMapGenerator
+#     accumulate over time. Prune them by hand occasionally.
+#   * no `create` on workloads: adding a *brand-new* Deployment/StatefulSet/
+#     CronJob/Cluster to the overlay makes the next reconcile fail. Apply that
+#     one by hand, once; CI then maintains it.
+#   * the rules must cover every kind the overlay renders - check with
+#     `kubectl kustomize overlays/kosarko-ns | grep -E '^(apiVersion|kind):'`
+#     after changing it, because a gap fails every tick with no other signal.
+rules:
+  # --- core -----------------------------------------------------------------
+  - apiGroups: [""]
+    resources: ["services", "persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # Read-only: `kubectl rollout status` and post-failure diagnostics.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+
+  # --- workloads ------------------------------------------------------------
+  # No `create` in this section: hygiene, not a boundary (steady-state apply
+  # does not need it). `patch`/`update` are unavoidable - that is how a tag
+  # change is applied.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # `kubectl rollout status deployment/...` walks the owned ReplicaSets.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+  # --- CRDs the overlay ships ----------------------------------------------
+  # CloudNativePG Cluster: no `create`, like the workloads above - a Cluster
+  # runs Pods from a spec-supplied `imageName`.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # ScheduledBackup carries no image of its own; the operator runs backups
+  # through the existing instance pods, so `create` here spawns nothing new.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["scheduledbackups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # barman-cloud plugin ObjectStore (S3 backup destination)
+  - apiGroups: ["barmancloud.cnpg.io"]
+    resources: ["objectstores"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # SealedSecrets: applying the encrypted form is safe — the ciphertext is
+  # bound to this name+namespace, so a new one cannot be forged here.
+  - apiGroups: ["bitnami.com"]
+    resources: ["sealedsecrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]

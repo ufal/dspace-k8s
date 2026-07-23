@@ -1,0 +1,198 @@
+# Verifies ok-dspace from OUTSIDE the cluster, over the real public URL.
+#
+# This is deliberately a GitHub-hosted job, not an in-cluster one. Reaching
+# https://ok-dspace.dyn.cloud.e-infra.cz from a pod inside kosarko-ns needs
+# hairpin NAT back through the external ingress, which plenty of CNI/LB setups
+# do not support - so the deploy workflow's own public-URL check has to be
+# non-fatal to avoid failing every deploy. Run from GitHub, the same request
+# takes the path a real user takes (DNS -> LB -> ingress -> TLS -> app), so it
+# can be fatal and actually mean something.
+#
+# Both components publish the commit they were built from, so this asserts the
+# intended code is really being served - not merely that something answers:
+#
+#   backend   GET /server/api            -> .buildVersion  ("Git hash: <sha> ...")
+#   frontend  GET /static/VERSION_D      -> SSR'd HTML     ("Git hash: <sha> ...")
+#
+# Both are produced at image build time by scripts/sourceversion.py in the
+# respective source repo, so the sha is the source commit - the same value the
+# deploy pins as the image tag.
+#
+# Architecture-independent on purpose: it needs only the public URL and the shas
+# that were supposed to be deployed. It works whether the apply came from the
+# in-cluster Actions runner or from a pull-based reconciler, so it survives a
+# change of deploy mechanism unchanged.
+name: Verify ok-dspace
+
+on:
+  workflow_call:
+    inputs:
+      backend_sha:
+        description: "clarin-dspace commit expected to be serving (blank = skip)"
+        required: false
+        type: string
+      frontend_sha:
+        description: "dspace-angular commit expected to be serving (blank = skip)"
+        required: false
+        type: string
+      timeout_minutes:
+        description: "How long to keep polling for the expected shas"
+        required: false
+        default: 30
+        type: number
+  workflow_dispatch:
+    inputs:
+      backend_sha:
+        description: "clarin-dspace commit expected to be serving (blank = skip)"
+        required: false
+        type: string
+      frontend_sha:
+        description: "dspace-angular commit expected to be serving (blank = skip)"
+        required: false
+        type: string
+      timeout_minutes:
+        description: "How long to keep polling for the expected shas"
+        required: false
+        default: 30
+        type: number
+
+# Reads nothing, writes nothing. This job holds no credential of any kind: the
+# endpoints it hits are public.
+permissions: {}
+
+env:
+  PUBLIC_URL: https://ok-dspace.dyn.cloud.e-infra.cz
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Bounded above the poll window so a hung curl cannot pin a runner.
+    timeout-minutes: 45
+
+    steps:
+      - name: Wait for the expected commits to be served
+        id: probe
+        env:
+          # External input by way of client_payload; never interpolated into the
+          # script body. Same pattern as pin-ok-dspace.yml.
+          EXPECTED_BACKEND: ${{ inputs.backend_sha }}
+          EXPECTED_FRONTEND: ${{ inputs.frontend_sha }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        run: |
+          set -euo pipefail
+
+          for s in "${EXPECTED_BACKEND}" "${EXPECTED_FRONTEND}"; do
+            if [ -n "$s" ] && ! printf '%s' "$s" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+              echo "::error::refusing malformed commit sha: '$s'"
+              exit 1
+            fi
+          done
+
+          # Pull the sha out of a "Git hash: ... <40 hex>" blob.
+          #
+          # ANCHORED ON PURPOSE. The frontend page also carries
+          # data-build="<40 hex>" on the lindat-common header and footer, and it
+          # appears EARLIER in the document. That attribute is the shared
+          # component library's hash - it does not move when dspace-angular
+          # changes - so matching the first 40-hex on the page would report a
+          # stale frontend as up to date. Never relax this to a bare hex match.
+          extract_sha() {
+            grep -oE 'Git hash:.{0,120}' | head -1 | grep -oiE '[0-9a-f]{40}' | head -1 || true
+          }
+
+          probe_backend() {
+            curl -fsS --max-time 30 "${PUBLIC_URL}/server/api" \
+              | jq -r '.buildVersion // empty' | extract_sha
+          }
+
+          probe_frontend() {
+            # Server-side rendered, so the sha is in the HTML curl receives.
+            curl -fsS --max-time 30 "${PUBLIC_URL}/static/VERSION_D" | extract_sha
+          }
+
+          # Poll rather than sleep for a fixed interval: succeed as soon as the
+          # new build is live, and spend the full window only on a real failure.
+          # The backend re-runs `database migrate` plus a full `index-discovery
+          # -b` on every start, so the slow case is minutes, not seconds.
+          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+          attempt=0
+          backend_live=""
+          frontend_live=""
+
+          while :; do
+            attempt=$((attempt + 1))
+            ok=true
+
+            backend_live="$(probe_backend || true)"
+            frontend_live="$(probe_frontend || true)"
+
+            # An empty expectation means "this component was not part of this
+            # deploy" - still report what it serves, but do not gate on it.
+            if [ -n "${EXPECTED_BACKEND}" ] && \
+               ! printf '%s' "${backend_live}" | grep -qiE "^${EXPECTED_BACKEND}"; then
+              ok=false
+            fi
+            if [ -n "${EXPECTED_FRONTEND}" ] && \
+               ! printf '%s' "${frontend_live}" | grep -qiE "^${EXPECTED_FRONTEND}"; then
+              ok=false
+            fi
+            # With nothing to assert, require only that both endpoints answer
+            # with a parseable build - which still proves DNS, ingress and TLS.
+            if [ -z "${EXPECTED_BACKEND}${EXPECTED_FRONTEND}" ] && \
+               { [ -z "${backend_live}" ] || [ -z "${frontend_live}" ]; }; then
+              ok=false
+            fi
+
+            if [ "${ok}" = true ]; then
+              echo "Verified after ${attempt} attempt(s)."
+              break
+            fi
+
+            echo "attempt ${attempt}: backend=${backend_live:-<none>} frontend=${frontend_live:-<none>}"
+
+            if [ "$(date +%s)" -ge "${deadline}" ]; then
+              echo "::error::${PUBLIC_URL} did not serve the expected commits within ${TIMEOUT_MINUTES}m."
+              echo "::error::  backend  expected=${EXPECTED_BACKEND:-<any>} live=${backend_live:-<unreachable>}"
+              echo "::error::  frontend expected=${EXPECTED_FRONTEND:-<any>} live=${frontend_live:-<unreachable>}"
+              echo "::error::The rollout may have failed, or the reconcile never ran. Check:"
+              echo "::error::  kubectl get deploy -n kosarko-ns -o jsonpath='{..image}'"
+              exit 1
+            fi
+            sleep 30
+          done
+
+          {
+            echo "backend_live=${backend_live}"
+            echo "frontend_live=${frontend_live}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: always()
+        env:
+          EXPECTED_BACKEND: ${{ inputs.backend_sha }}
+          EXPECTED_FRONTEND: ${{ inputs.frontend_sha }}
+          BACKEND_LIVE: ${{ steps.probe.outputs.backend_live }}
+          FRONTEND_LIVE: ${{ steps.probe.outputs.frontend_live }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## ok-dspace verification"
+            echo
+            echo "Checked from GitHub over the public URL: ${PUBLIC_URL}"
+            echo
+            echo "| Component | Expected | Serving |"
+            echo "|---|---|---|"
+            echo "| backend (clarin-dspace) | \`${EXPECTED_BACKEND:-(any)}\` | \`${BACKEND_LIVE:-unreachable}\` |"
+            echo "| frontend (dspace-angular) | \`${EXPECTED_FRONTEND:-(any)}\` | \`${FRONTEND_LIVE:-unreachable}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# ---------------------------------------------------------------------------
+# WHERE THE TEST SUITE HOOKS IN
+#
+# This job is the seam: it is the first point at which "the intended commit is
+# really being served over the public URL" is known to be true, which is exactly
+# the precondition an e2e suite needs. Add the tests as a job that `needs:` this
+# one (or dispatch them from here), passing the probe outputs through so a test
+# report records which commits it actually tested. Deliberately not wired up
+# yet - tests are a separate piece of work.
+# ---------------------------------------------------------------------------
