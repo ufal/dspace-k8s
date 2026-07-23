@@ -72,8 +72,10 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: issue_-1360_change_license_in_workflow_item
+    newTag: 5e0363798cc849a311a69760e73db17ac27aecc5
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
+    newTag: 5e0363798cc849a311a69760e73db17ac27aecc5
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
+    newTag: 7b4769e8496a9387b97fbb2afaf019201820d153
