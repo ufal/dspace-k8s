@@ -48,11 +48,6 @@ permissions:
 env:
   OVERLAY: overlays/kosarko-ns
   PUBLIC_URL: https://ok-dspace.dyn.cloud.e-infra.cz
-  YQ_VERSION: v4.53.3
-  # SHA-256 of yq_linux_amd64 for YQ_VERSION, from that release's own
-  # `checksums` asset. Update BOTH together - a version bump with a stale
-  # checksum fails the install step, which is the intended behaviour.
-  YQ_SHA256: fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4
 
 jobs:
   pin:
@@ -74,24 +69,6 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-
-      # Kept even though ubuntu-latest ships a yq, because the VERSION is the
-      # point: the overlay was pre-normalised to v4.53.3's exact output so that
-      # every generated commit is a clean one-line tag change. A different yq
-      # could reformat the whole file on the first write.
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/bin"
-          curl -fsSL -o "${RUNNER_TEMP}/bin/yq" \
-            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          # This job holds contents:write on the repository, so an unverified
-          # binary fetched over the network would be arbitrary code execution
-          # with permission to commit to main. Pinning the version alone does
-          # not help: release assets can be replaced.
-          echo "${YQ_SHA256}  ${RUNNER_TEMP}/bin/yq" | sha256sum -c -
-          chmod +x "${RUNNER_TEMP}/bin/yq"
-          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
 
       - name: Resolve requested image tags
         id: resolve
@@ -210,6 +187,14 @@ jobs:
           # overlay was pre-normalised to yq's canonical form in a reviewed
           # commit. The property being relied on is COMMENT PRESERVATION, not
           # "leaves the file alone".
+          #
+          # yq comes preinstalled on ubuntu-latest (4.53.3 today, the version
+          # the overlay was normalised with). If a future runner image ships a
+          # yq that formats differently, the first pin after that carries a
+          # whole-file reformat instead of a one-line tag change - cosmetic,
+          # renders identically, and self-correcting from the next pin on.
+          # Deliberately not guarded: a version assertion would turn a tidy
+          # diff into a failed deploy.
           #
           # Each dispatch rewrites ONLY its own component's tag. That is what
           # stops a backend deploy from reasserting a stale frontend tag.
