@@ -31,6 +31,7 @@ kind: Kustomization
 
 resources:
   - ../docker-desktop
+  - secrets.yaml
 
 namespace: dspace-k3s
 
@@ -67,6 +68,7 @@ patches:
   # docker-desktop sets the backend env var dspace__P__hostname=dspace.localhost.
   # DSpace env vars OVERRIDE local.cfg, so without this it would clobber our
   # sslip.io hostname at runtime (breaking CORS origins + redirects). Re-point it.
+  # Also inject the PAT encryption secret from clarin-token-secret.
   - patch: |-
       apiVersion: apps/v1
       kind: Deployment
@@ -80,6 +82,11 @@ patches:
                 env:
                   - name: dspace__P__hostname
                     value: "dspace.127.0.0.1.sslip.io"
+                  - name: CLARIN_TOKEN_ENCRYPTION_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: clarin-token-secret
+                        key: CLARIN_TOKEN_ENCRYPTION_SECRET
     target:
       kind: Deployment
       name: dspace-backend
