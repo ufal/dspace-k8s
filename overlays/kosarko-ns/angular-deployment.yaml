@@ -5,8 +5,36 @@ metadata:
 spec:
   template:
     spec:
+      # Drop the test-site stylesheet into the image's own assets/ directory.
+      # subPath mounts a single FILE, so this ADDS seed-testsite.css without
+      # shadowing the rest of assets/ (i18n, images, favicons) the way a
+      # directory mount would. The path must be under dist/browser/assets: the
+      # <link href> in config.yml is relative to the app base, and that directory
+      # is what expressStaticGzip serves.
+      #
+      # volumes and volumeMounts merge by `name`, so both blocks are additive --
+      # the inherited local-config volume and its mounts are untouched.
+      volumes:
+        - name: seed-testsite-css
+          configMap:
+            name: seed-testsite-css
+        - name: angular-config
+          configMap:
+            name: angular-config
       containers:
         - name: dspace-angular
           env:
             - name: DSPACE_REST_HOST
               value: "ok-dspace.dyn.cloud.e-infra.cz"
+          volumeMounts:
+            - name: seed-testsite-css
+              mountPath: /app/dist/browser/assets/seed-testsite.css
+              subPath: seed-testsite.css
+            # RE-POINT, not add. volumeMounts merge on `mountPath`, so declaring
+            # the same path with a different volume name REPLACES the inherited
+            # mount that read config.yml out of local-config. This is what keeps
+            # the frontend's config out of the backend's ConfigMap; see the long
+            # note in kustomization.yaml.
+            - name: angular-config
+              mountPath: /app/config/config.yml
+              subPath: config.yml
