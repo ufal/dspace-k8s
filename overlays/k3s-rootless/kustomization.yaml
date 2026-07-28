@@ -60,7 +60,14 @@ namespace: dspace-k3s
 #      one the live k3s cluster runs: the kosarko-ns file modulo CRLF->LF, with two
 #      lines differing -- the dc.publisher field uses a plain <input-type>onebox</>
 #      instead of <input-type autocomplete-custom="solr-publisher_ac">autocomplete</>.
-#      Keep it that way unless the local Solr grows the publisher autocomplete core.
+#      That `solr-` prefix is NOT a separate Solr core: SuggestionRestController
+#      strips it and queries the ordinary Discovery search index via
+#      searchService.search(), where `publisher_ac` is the autocomplete variant
+#      SolrServiceImpl builds by appending "_ac" to an indexed field. It is present
+#      and populated locally (facet on publisher_ac returns the seed publishers), so
+#      the onebox variant is NOT required by any local limitation -- it is simply
+#      what this cluster was running. Aligning it with kosarko-ns should work; that
+#      is a deliberate choice, not a fix, so it is left alone here.
 #
 # Both are now declared here so the overlay reproduces the running environment.
 # NOTE the floating tag + imagePullPolicy: Always combination is still a hazard:
