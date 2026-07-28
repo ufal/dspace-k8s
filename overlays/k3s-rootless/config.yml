@@ -19,3 +19,53 @@ universal:
   preboot: true
   async: true
   time: false
+
+# ---------------------------------------------------------------------------
+# Test-site marking, config-only (no Angular image rebuild).
+#
+# ThemeService.createHeadTags() renders each entry with
+#   document.createElement(tagName) + setAttribute(k, v)
+# and there is NO allow-list on tagName or attributes, so headTags is a general
+# <head> injection point. It runs server-side too, so these tags are in the
+# initial SSR HTML where crawlers actually look -- verified on the existing
+# favicon tags, which appear as class="theme-head-tag" in an anonymous curl.
+#
+# This is why the noindex does NOT need the ingress: ingress-nginx here refuses
+# `configuration-snippet` (snippet directives disabled by the administrator) and
+# `custom-headers` needs `global-allowed-response-headers` in the CLUSTER-scoped
+# controller ConfigMap, which a namespace tenant cannot set. A robots meta tag is
+# honoured by Google and Bing identically, and we can set it ourselves.
+#
+# NOTE: this list REPLACES DefaultAppConfig.themes, so the three favicon tags
+# that ship with the built-in `dspace` theme are repeated verbatim below. Drop
+# them and the site loses its favicon, apple-touch-icon and web manifest.
+# ---------------------------------------------------------------------------
+themes:
+  - name: dspace
+    headTags:
+      # Keep search engines out of a synthetic corpus dressed up like a real one.
+      - tagName: meta
+        attributes:
+          name: robots
+          content: "noindex, nofollow"
+      # Test-site chrome. A separate small stylesheet on purpose: patching the
+      # 344 KB dspace-theme.css in place would also mean regenerating its .gz/.br
+      # siblings, which express-static-gzip serves in preference to the .css.
+      - tagName: link
+        attributes:
+          rel: stylesheet
+          href: assets/seed-testsite.css
+      # --- unchanged defaults from DefaultAppConfig, repeated so they survive ---
+      - tagName: link
+        attributes:
+          rel: icon
+          href: assets/dspace/images/favicons/favicon.ico
+          sizes: any
+      - tagName: link
+        attributes:
+          rel: apple-touch-icon
+          href: assets/dspace/images/favicons/apple-touch-icon.png
+      - tagName: link
+        attributes:
+          rel: manifest
+          href: assets/dspace/images/favicons/manifest.webmanifest

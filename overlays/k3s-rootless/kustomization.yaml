@@ -39,14 +39,83 @@ namespace: dspace-k3s
 # docker-desktop copies (which use :80) with :8080 variants. behavior: merge
 # swaps these keys in the inherited local-config-map; the other generated
 # files (environment.prod.ts, user_exists.jsh) pass through untouched.
+# ---------------------------------------------------------------------------
+# CAPTURED OUT-OF-BAND DRIFT (2026-07-28). The live dspace-k3s namespace had two
+# hand-made changes that existed nowhere in git, and a plain `kubectl apply -k`
+# silently reverted both, taking the backend down:
+#
+#   1. All four DSpace containers (the main one AND the three init containers,
+#      which `kubectl set image <name>=` does NOT reach unless named) ran
+#      ufal/dspace:issue-1351_simple_ror_authority, not dataquest/dspace:dspace-7_x.
+#      That image had applied Flyway migrations 7.6.2025.11.01-.04 to the DB on
+#      2026-06-29, so the git-declared image fails `migrate` validation forever:
+#      "Detected applied migration not resolved locally".
+#   2. local-config-map carried a 5th key, submission-forms.xml, with a matching
+#      subPath volumeMount on the backend. Regenerating the ConfigMap without it
+#      left the mount binding a nonexistent key -> kubelet creates a directory ->
+#      "error mounting ... not a directory" -> CrashLoopBackOff.
+#      NOT invented locally: overlays/kosarko-ns/submission-forms.xml is committed
+#      on origin/main. The k3s-rootless overlay simply never inherited it (it
+#      builds on ../docker-desktop, not on kosarko-ns). The copy added here is the
+#      one the live k3s cluster runs: the kosarko-ns file modulo CRLF->LF, with two
+#      lines differing -- the dc.publisher field uses a plain <input-type>onebox</>
+#      instead of <input-type autocomplete-custom="solr-publisher_ac">autocomplete</>.
+#      Keep it that way unless the local Solr grows the publisher autocomplete core.
+#
+# Both are now declared here so the overlay reproduces the running environment.
+# NOTE the floating tag + imagePullPolicy: Always combination is still a hazard:
+# any pod recreate re-pulls, and these tags get rebuilt upstream. Digest pinning
+# is the real fix (already the chosen pattern for ok-dspace CI/CD).
+# ---------------------------------------------------------------------------
+images:
+  - name: dataquest/dspace
+    newName: ufal/dspace
+    newTag: issue-1351_simple_ror_authority
+
 configMapGenerator:
   - name: local-config-map
     behavior: merge
     files:
       - local.cfg
       - config.yml
+      # Was only ever in the live cluster; the backend subPath-mounts it at
+      # /dspace/config/submission-forms.xml and crashes on boot without it.
+      - submission-forms.xml
+  # The stylesheet referenced by themes[].headTags in config.yml. Its own
+  # ConfigMap rather than a key in local-config-map, so the hash suffix only
+  # changes (and only the frontend restarts) when the CSS itself changes.
+  - name: seed-testsite-css
+    files:
+      - seed-testsite.css
 
 patches:
+  # Drop the test-site stylesheet into the image's own assets/ directory.
+  # subPath mounts a single FILE, so it adds seed-testsite.css without shadowing
+  # the rest of assets/ (i18n, images, favicons) the way a directory mount would.
+  # The path must be inside dist/browser/assets: the <link href> in config.yml is
+  # relative to the app base, and that directory is what expressStaticGzip serves.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dspace-angular
+      spec:
+        template:
+          spec:
+            volumes:
+              - name: seed-testsite-css
+                configMap:
+                  name: seed-testsite-css
+            containers:
+              - name: dspace-angular
+                volumeMounts:
+                  - name: seed-testsite-css
+                    mountPath: /app/dist/browser/assets/seed-testsite.css
+                    subPath: seed-testsite.css
+    target:
+      kind: Deployment
+      name: dspace-angular
+
   # Re-point both Ingress host rules from *.localhost (needs /etc/hosts -> root)
   # to *.127.0.0.1.sslip.io, which resolves to 127.0.0.1 via public DNS with no
   # hosts file and no root. nginx matches server_name ignoring the :8080 port.
