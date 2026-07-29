@@ -9,6 +9,33 @@ configMapGenerator:
     files:
       - local.cfg
       - submission-forms.xml
+  # ---------------------------------------------------------------------------
+  # The frontend's config.yml and stylesheet live in their OWN ConfigMaps, NOT as
+  # extra keys in local-config-map. That is deliberate and it is the whole reason
+  # this overlay is shaped this way:
+  #
+  # local-config-map is mounted by the BACKEND (local.cfg, user_exists.jsh) as
+  # well as the frontend. Adding a key to it changes its hash suffix, which
+  # changes the backend pod template, which restarts the backend -- init
+  # containers, `database migrate`, `index-discovery -b`, minutes of downtime,
+  # and an image re-pull on any floating tag. Doing exactly that on the local k3s
+  # stack on 2026-07-28 took the backend down for an hour. A purely cosmetic
+  # frontend change must not be able to bounce the backend, least of all from a
+  # reconciler tick nobody is watching.
+  #
+  # Split this way, editing config.yml or the CSS rolls ONLY dspace-angular.
+  #
+  # RBAC checked: ci-reconcile/role.yaml grants core/configmaps
+  # get,list,watch,create,update,patch, so the reconciler can create both. A
+  # missing verb would fail every 5-minute tick with no other signal.
+  # ---------------------------------------------------------------------------
+  - name: angular-config
+    files:
+      # Complete copy of k8s/config.yml plus the themes[].headTags block.
+      - config.yml
+  - name: seed-testsite-css
+    files:
+      - seed-testsite.css
 #images:
 #  - name: dataquest/dspace
 #    newName: ufal/dspace
