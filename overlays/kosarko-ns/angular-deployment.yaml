@@ -21,6 +21,9 @@ spec:
         - name: angular-config
           configMap:
             name: angular-config
+        - name: robots-txt-ejs
+          configMap:
+            name: robots-txt-ejs
       containers:
         - name: dspace-angular
           env:
@@ -38,3 +41,11 @@ spec:
             - name: angular-config
               mountPath: /app/config/config.yml
               subPath: config.yml
+            # REPLACE the stock robots.txt template. This is the copy Express
+            # actually renders: views root is dist/browser, so the dist/server
+            # copy of the same file is never read. See kustomization.yaml for
+            # why this is needed on top of the noindex meta tag, and why a pod
+            # restart (which the generator hash triggers) is part of the deal.
+            - name: robots-txt-ejs
+              mountPath: /app/dist/browser/assets/robots.txt.ejs
+              subPath: robots.txt.ejs
