@@ -36,6 +36,47 @@ configMapGenerator:
   - name: seed-testsite-css
     files:
       - seed-testsite.css
+  # ---------------------------------------------------------------------------
+  # robots.txt: keep this test instance out of search.
+  #
+  # The driver is the SITEMAP, not the meta tag. Stock robots.txt advertises two
+  # `Sitemap:` lines and a backend cron regenerates sitemap0.xml nightly
+  # (5 <loc>, lastmod 2026-07-30T01:15Z) -- an active invitation that grows with
+  # every seeded item, and one no amount of meta-tag coverage removes.
+  #
+  # It also covers what the meta tag structurally cannot: themes[].headTags
+  # injects <meta name="robots" content="noindex, nofollow"> during SSR, so the
+  # tag is absent from every universal.excludePathPatterns route -- /search,
+  # /browse/, /community-list, /statistics, /notifications, /access-control and
+  # the uuid-scoped browse routes serve a bare CSR shell where it appears only
+  # after hydration. That list is compiled into the image's
+  # environment.production.ts -- NOT in this repo and NOT in the config.yml we
+  # mount over it -- so it can move on any image bump with nothing here to
+  # review. Verified live 2026-07-30 (`/search/foo` is excluded too: the
+  # compiled pattern is `^/search`, unanchored).
+  #
+  # `Disallow: /` SUPERSEDES the meta tag for compliant crawlers rather than
+  # complementing it: a disallowed URL is never fetched, so the tag is never
+  # read. The tag stays as the fallback for crawlers that ignore robots.txt.
+  # Consequence: this freezes rather than removes -- anything already indexed
+  # needs a manual removal request.
+  #
+  # Replacing the whole template is both forced and smaller: subPath mounts a
+  # file entire and kustomize cannot patch generated file content, so merely
+  # uncommenting the stock `Disallow: /browse/*` would mean vendoring 153
+  # upstream lines into this overlay, to then drift on every image bump.
+  #
+  # A RESTART is required. subPath ConfigMap mounts are not live-updated by
+  # kubelet, and each of the container's 7 pm2 workers caches the compiled
+  # template for its lifetime (observed: after restoring the file on disk, ~6/7
+  # of responses still served the edited version). The generator's name-suffix
+  # hash is what rolls dspace-angular, and only dspace-angular per the split
+  # above -- do not add disableNameSuffixHash. Verify once the rollout has
+  # completed: zero `Sitemap:` lines.
+  # ---------------------------------------------------------------------------
+  - name: robots-txt-ejs
+    files:
+      - robots.txt.ejs
 #images:
 #  - name: dataquest/dspace
 #    newName: ufal/dspace
