@@ -102,34 +102,6 @@ patches:
     target:
       kind: ObjectStore
       name: dspace-barman-store
-  # ---------------------------------------------------------------------------
-  # health-report: suspended on this instance, not re-addressed.
-  #
-  # k8s/dspace-cronjobs.yaml:39 runs `dspace health-report -e
-  # YOUR.EMAIL@DOMAIN.COM` daily -- a placeholder that shipped enabled. With
-  # mail.server.disabled = true (overlays/kosarko-ns/local.cfg) it can no longer
-  # send anything, so this patch is not what stops the mail; it stops the job
-  # from existing as a trap. Leaving it scheduled means the placeholder address
-  # survives in git as something that goes live the moment mail is enabled, and
-  # a daily JVM start produces a report on a synthetic corpus that no one reads.
-  #
-  # Suspended rather than re-addressed because there is no correct address to
-  # write here: a health report about fabricated content is not something a
-  # human should receive. If someone does want it, flip suspend to false and set
-  # a real address in the base -- one line, and the base is where the placeholder
-  # actually belongs.
-  #
-  # Deliberately NOT suspended: subscription-send D/W/M. They exercise a real
-  # code path, which on a test instance is the point, and mail.server.disabled
-  # already makes them unable to deliver.
-  # ---------------------------------------------------------------------------
-  - target:
-      kind: CronJob
-      name: dspace-health-report
-    patch: |-
-      - op: add
-        path: /spec/suspend
-        value: true
   - target:
       kind: Ingress
       name: dspace-ingress
