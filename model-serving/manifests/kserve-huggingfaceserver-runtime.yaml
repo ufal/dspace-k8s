@@ -1,0 +1,56 @@
+# ClusterServingRuntime for modelFormat "huggingface". NOT bundled in the
+# kserve-resources Helm chart (confirmed: chart only ships CRDs/controller/
+# configmap, no runtimes) -- sourced from the upstream kserve repo's
+# config/runtimes/kserve-huggingfaceserver.yaml at tag v0.19.0, with the
+# kustomize image placeholder resolved to the CPU image pinned to v0.19.0
+# (matches the image pre-pulled in Phase 1.7; upstream kustomization.yaml
+# would otherwise resolve it to kserve/huggingfaceserver:latest).
+# GPU infra: swap image for kserve/huggingfaceserver:v0.19.0-gpu (see README).
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: kserve-huggingfaceserver
+  annotations:
+    serving.kserve.io/server-type: huggingfaceserver
+spec:
+  annotations:
+    prometheus.kserve.io/port: '8080'
+    prometheus.kserve.io/path: "/metrics"
+  supportedModelFormats:
+    - name: huggingface
+      version: "1"
+      autoSelect: true
+      priority: 1
+  protocolVersions:
+    - v2
+    - v1
+  containers:
+    - name: kserve-container
+      image: kserve/huggingfaceserver:v0.19.0
+      args:
+        - --model_name={{.Name}}
+      env:
+        - name: LMCACHE_USE_EXPERIMENTAL
+          value: "True"
+      securityContext:
+        allowPrivilegeEscalation: false
+        privileged: false
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      volumeMounts:
+        - name: devshm
+          mountPath: /dev/shm
+  volumes:
+    - name: devshm
+      emptyDir:
+        medium: Memory
+  hostIPC: false

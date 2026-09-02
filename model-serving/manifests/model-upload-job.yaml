@@ -1,0 +1,93 @@
+# One-shot job: download Qwen2.5-0.5B-Instruct from Hugging Face and upload it
+# to MinIO under models/qwen2.5-0.5b-instruct/, via boto3 (no fragile host
+# port-forward -- runs in-cluster against minio-service directly).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-upload-script
+  namespace: dspace-k3s
+data:
+  upload.py: |
+    import os
+    import boto3
+    from huggingface_hub import snapshot_download
+
+    MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+    LOCAL_DIR = "/work/model"
+    BUCKET = "models"
+    PREFIX = "qwen2.5-0.5b-instruct"
+
+    print(f"Downloading {MODEL_ID} ...")
+    snapshot_download(
+        MODEL_ID,
+        local_dir=LOCAL_DIR,
+        allow_patterns=[
+            "*.safetensors",
+            "*.json",
+            "tokenizer*",
+            "merges.txt",
+            "vocab*",
+        ],
+    )
+    print("Download complete, listing files:")
+    files = []
+    for root, _dirs, names in os.walk(LOCAL_DIR):
+        for name in names:
+            files.append(os.path.join(root, name))
+    for f in sorted(files):
+        print(" ", f)
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url="http://minio-service:9000",
+        aws_access_key_id="minioadmin",
+        aws_secret_access_key="minioadmin",
+    )
+    for f in files:
+        key = f"{PREFIX}/{os.path.relpath(f, LOCAL_DIR)}"
+        print(f"Uploading {f} -> s3://{BUCKET}/{key}")
+        s3.upload_file(f, BUCKET, key)
+
+    print("UPLOAD DONE")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-upload-qwen
+  namespace: dspace-k3s
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: upload
+          image: python:3.12-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install --quiet huggingface_hub boto3 && \
+              python /script/upload.py
+          env:
+            - name: HF_HOME
+              value: /work/hf
+          volumeMounts:
+            - name: work
+              mountPath: /work
+            - name: script
+              mountPath: /script
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: work
+          emptyDir:
+            sizeLimit: 6Gi
+        - name: script
+          configMap:
+            name: model-upload-script

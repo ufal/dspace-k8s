@@ -1,0 +1,25 @@
+# Hand-written smoke-test InferenceService, proven working before templates.py
+# is built from it. Keep until Phase 6 (reconciler) end-to-end works.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: smoke-qwen
+  namespace: dspace-k3s
+spec:
+  predictor:
+    serviceAccountName: models-s3-sa
+    model:
+      modelFormat:
+        name: huggingface
+      storageUri: s3://models/qwen2.5-0.5b-instruct
+      args:
+        - --model_name=smoke-qwen
+        - --backend=huggingface   # GPU infra: remove (vLLM auto-selects); see README
+      # GPU infra: add nvidia.com/gpu: "1" to limits; runtime flips to -gpu image
+      resources:
+        requests:
+          cpu: "2"
+          memory: 3Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
