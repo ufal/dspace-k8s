@@ -21,7 +21,7 @@ spec:
                       name: s3-backup-secret
                       key: S3_REGION
                 - name: S3_BUCKET_NAME
-                  value: clarin-dspace-log-001
+                  value: mkuchtiak-dspace-k8s-logs
               envFrom:
                 - secretRef:
                     name: s3-backup-secret

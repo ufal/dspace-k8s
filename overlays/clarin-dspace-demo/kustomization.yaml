@@ -66,6 +66,15 @@ patches:
         path: /spec/storageClassName
         value: "csi-rbd-nrp-ssd-sc"
 
+configMapGenerator:
+  - name: angular-config
+    files:
+      # Complete copy of k8s/config.yml plus the themes[].headTags block.
+      - config.yml
+  - name: seed-testsite-css
+    files:
+      - seed-testsite.css
+
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
@@ -75,4 +84,4 @@ images:
     newTag: dspace-7_x
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
-    newTag: dspace-7_x
+    newTag: nrp-k8s-demo
