@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dspace-angular
+spec:
+  template:
+    spec:
+      volumes:
+        - name: seed-testsite-css
+          configMap:
+            name: seed-testsite-css
+        - name: angular-config
+          configMap:
+            name: angular-config
+      containers:
+        - name: dspace-angular
+          env:
+            - name: DSPACE_REST_HOST
+              value: "clarin-dspace-demo.dyn.nrp1.du.cesnet.cz"
+          volumeMounts:
+            - name: seed-testsite-css
+              mountPath: /app/dist/browser/assets/seed-testsite.css
+              subPath: seed-testsite.css
+            - name: angular-config
+              mountPath: /app/config/config.yml
+              subPath: config.yml
