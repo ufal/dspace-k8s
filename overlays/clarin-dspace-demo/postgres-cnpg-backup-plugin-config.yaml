@@ -11,10 +11,10 @@ spec:
   configuration:
     # S3 backup destination - customized for this environment
     # Format: s3://<bucket-name>/<path-prefix>/
-    destinationPath: "s3://mkuchtiak-dspace-k8s-backup/postgresql-backups/"
+    destinationPath: "s3://dspace-demo-backup/postgresql-backups/"
 
     # S3 endpoint URL - should match S3_ENDPOINT in s3-assetstore-secret
-    endpointURL: "https://s3.cl4.du.cesnet.cz"
+    endpointURL: "https://s3.nrp1.du.cesnet.cz"
     s3Credentials:
       accessKeyId:
         name: s3-backup-secret
