@@ -28,6 +28,9 @@ configMapGenerator:
 - name: local-config-map
   files:
   - local.cfg
+  # Included by local.cfg; lets overlays merge a few properties without
+  # copying the whole local.cfg file (see local.d/extra.cfg)
+  - local.d/extra.cfg
   # Angular runtime config used by the dspace/dspace-angular image (SSR)
   - config.yml
   - environment.prod.ts

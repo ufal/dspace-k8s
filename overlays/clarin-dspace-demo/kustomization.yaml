@@ -67,6 +67,10 @@ patches:
         value: "csi-rbd-nrp-ssd-sc"
 
 configMapGenerator:
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.d/extra.cfg
   - name: angular-config
     files:
       # Complete copy of k8s/config.yml plus the themes[].headTags block.

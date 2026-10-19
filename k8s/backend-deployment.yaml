@@ -116,6 +116,9 @@ spec:
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
             - name: local-config
+              mountPath: /dspace/config/local.d/extra.cfg
+              subPath: extra.cfg
+            - name: local-config
               mountPath: /dspace/bin/user_exists.jsh
               subPath: user_exists.jsh
             - name: dspace-logs

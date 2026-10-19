@@ -36,6 +36,9 @@ spec:
             - name: local-config
               mountPath: /dspace/config/local.cfg
               subPath: local.cfg
+            - name: local-config
+              mountPath: /dspace/config/local.d/extra.cfg
+              subPath: extra.cfg
             env:
             - name: POSTGRES_PASSWORD
               valueFrom:
