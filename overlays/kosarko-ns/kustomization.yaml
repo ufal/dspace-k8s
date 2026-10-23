@@ -7,7 +7,7 @@ configMapGenerator:
   - name: local-config-map
     behavior: merge
     files:
-      - local.cfg
+      - local.d/extra.cfg
       - submission-forms.xml
   # ---------------------------------------------------------------------------
   # The frontend's config.yml and stylesheet live in their OWN ConfigMaps, NOT as
