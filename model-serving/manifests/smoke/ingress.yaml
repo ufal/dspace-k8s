@@ -1,0 +1,26 @@
+# Repo-convention Ingress for the smoke InferenceService. KServe's own ingress
+# creation is disabled cluster-wide (disableIngressCreation: true) -- we ship
+# our own nginx Ingress per model, matching *.127.0.0.1.sslip.io conventions.
+# Recorded predictor service/port (Phase 4.2 stage 3): smoke-qwen-predictor:80.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: smoke-qwen
+  namespace: dspace-k3s
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: smoke-qwen.127.0.0.1.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: smoke-qwen-predictor
+                port:
+                  number: 80

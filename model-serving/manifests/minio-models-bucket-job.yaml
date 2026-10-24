@@ -1,0 +1,24 @@
+# One-shot job to create the "models" bucket in the existing in-cluster MinIO.
+# Safe to re-run: --ignore-existing means it's a no-op if the bucket exists.
+# Pattern copied from overlays/docker-desktop/minio.yaml's minio-create-bucket Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-models-bucket
+  namespace: dspace-k3s
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until mc alias set minio http://minio-service:9000 minioadmin minioadmin 2>/dev/null; do
+                echo "Waiting for MinIO to be ready..."; sleep 3
+              done
+              mc mb --ignore-existing minio/models
+              echo "Bucket models is ready."
