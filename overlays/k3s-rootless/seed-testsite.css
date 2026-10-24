@@ -1,0 +1,75 @@
+/*
+ * Test-site branding override.
+ *
+ * Loaded via themes[].headTags in config.yml, which ThemeService renders as a
+ * <link rel="stylesheet" class="theme-head-tag"> in <head> -- server-side, so it
+ * is present in the initial SSR HTML, not only after hydration.
+ *
+ * Deliberately CSS-only. The header/footer are compiled-in Angular components
+ * (prebuilt image dataquest/dspace-angular:dspace-7_x), so overriding them
+ * properly would mean a fork rebuild. Hiding + pseudo-elements needs neither,
+ * and a pseudo-element is not a DOM node, so Angular hydration cannot reconcile
+ * it away.
+ *
+ * Selectors come from the templates, verified against the live DOM:
+ *   header: src/themes/dspace/app/header/header.component.html
+ *           <header class="header"> = <ds-clarin-navbar-top> + .lindat-common-header
+ *   footer: src/app/footer/footer.component.html   (the dspace theme has NO footer
+ *           override -- the live element reports data-used-theme="base")
+ *
+ * !important throughout: the theme bundle (dspace-theme.css) loads from the same
+ * <head> and we cannot rely on winning source order.
+ */
+
+:root {
+  --seed-test-bg: #8a2b06;
+  --seed-test-fg: #fff8f0;
+  --seed-test-accent: #ffb300;
+}
+
+/* ------------------------------------------------------------------ HEADER --
+ * Keep <ds-clarin-navbar-top> (language flags + login/logout badge) exactly as
+ * it is. Replace only the LINDAT/CLARIAH navigation block with a demo banner.
+ */
+ds-header header.header .lindat-common-header {
+  display: none !important;
+}
+
+ds-header header.header::after {
+  content: "DEMO / TEST INSTANCE \2014 \00a0 synthetic data only, nothing here is a real resource";
+  display: block !important;
+  padding: 0.85rem 1rem !important;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--seed-test-bg),
+    var(--seed-test-bg) 18px,
+    #7a2605 18px,
+    #7a2605 36px
+  ) !important;
+  border-bottom: 3px solid var(--seed-test-accent) !important;
+  color: var(--seed-test-fg) !important;
+  font-weight: 700 !important;
+  font-size: 1.05rem !important;
+  letter-spacing: 0.04em !important;
+  text-align: center !important;
+  text-transform: uppercase !important;
+}
+
+/* ------------------------------------------------------------------ FOOTER --
+ * Drop the whole LINDAT/CLARIAH footer (partner lists, badges, funding
+ * acknowledgement, external links) and leave a single centered line.
+ */
+ds-footer footer .lindat-common-footer {
+  display: none !important;
+}
+
+ds-footer footer.text-lg-start::after {
+  content: "Visible CLARIN-DSpace test site \2014 \00a0 synthetic corpus, no real data, no real authors";
+  display: block !important;
+  padding: 1.75rem 1rem !important;
+  background: var(--seed-test-bg) !important;
+  border-top: 3px solid var(--seed-test-accent) !important;
+  color: var(--seed-test-fg) !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+}

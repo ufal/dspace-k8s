@@ -1,0 +1,26 @@
+# In-cluster DNS rewrite so Angular SSR can reach the backend.
+#
+# The Angular server-side renderer runs INSIDE the angular pod and calls the
+# public REST URL (dspace.127.0.0.1.sslip.io:8080). sslip.io resolves that to
+# 127.0.0.1 — which, inside the pod, is the pod's own loopback, where nothing
+# serves the API. Result: SSR fails with `undefined doesn't contain the link
+# authn` and the UI returns HTTP 500 (the browser still works via client-side
+# rendering, but SSR is broken).
+#
+# This rewrites the hostname *in-cluster only* to the backend Service, so SSR
+# reaches the API directly. The Host header is unchanged, so DSpace still sees
+# its configured hostname. Browsers outside the cluster are unaffected (they
+# keep resolving sslip.io -> 127.0.0.1 -> host:8080 -> ingress).
+#
+# k3s CoreDNS imports kube-system/coredns-custom via `import *.override`.
+# Apply with `kubectl apply -f` (NOT via kustomize -k — it belongs in
+# kube-system, and the overlay forces everything into the dspace-k3s namespace).
+# After applying: kubectl -n kube-system rollout restart deployment/coredns
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  dspace-ssr.override: |
+    rewrite name exact dspace.127.0.0.1.sslip.io dspace-backend-service.dspace-k3s.svc.cluster.local

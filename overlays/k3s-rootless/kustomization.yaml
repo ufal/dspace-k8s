@@ -1,0 +1,180 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ---------------------------------------------------------------------------
+# k3s-rootless overlay
+#
+# Local single-node dev on a *rootless* k3s cluster (no Docker Desktop).
+# It is intentionally a thin layer on top of the docker-desktop overlay,
+# which already does the local-dev substitutions we also want:
+#   - CloudNativePG  -> plain Postgres Deployment
+#   - SealedSecrets  -> plain Secrets
+#   - real S3        -> in-cluster MinIO
+#   - Ingress TLS    -> plain HTTP on dspace.localhost / minio.localhost
+#
+# Three things differ on rootless k3s, all handled below:
+#   1. Storage class: Docker Desktop's provisioner is named "hostpath";
+#      k3s's built-in local-path-provisioner is named "local-path".
+#   2. A distinct namespace so it can coexist with a docker-desktop deploy.
+#   3. External URLs carry :8080 — rootless can't bind privileged :80, so the
+#      ingress controller is exposed on non-privileged host port 8080. DSpace
+#      bakes the URL (incl. port) into redirects + CORS origins, so local.cfg
+#      and config.yml override the docker-desktop copies with the port.
+#
+# The Ingress objects themselves are inherited unchanged (ingressClassName:
+# nginx, the proxy-body-size 10g / timeout / buffering annotations, host
+# dspace.localhost, TLS removed) — nginx matches the host rule ignoring the
+# port, so only the app-facing URLs need it. Correct AS-IS *provided* the
+# cluster runs ingress-nginx (not k3s's bundled Traefik) exposed on host
+# 8080. See README.md for those operational, no-root prerequisites.
+# ---------------------------------------------------------------------------
+
+resources:
+  - ../docker-desktop
+  - secrets.yaml
+
+namespace: dspace-k3s
+
+# Override the two config files that embed the external URL, replacing the
+# docker-desktop copies (which use :80) with :8080 variants. behavior: merge
+# swaps these keys in the inherited local-config-map; the other generated
+# files (environment.prod.ts, user_exists.jsh) pass through untouched.
+# ---------------------------------------------------------------------------
+# CAPTURED OUT-OF-BAND DRIFT (2026-07-28). The live dspace-k3s namespace had two
+# hand-made changes that existed nowhere in git, and a plain `kubectl apply -k`
+# silently reverted both, taking the backend down:
+#
+#   1. All four DSpace containers (the main one AND the three init containers,
+#      which `kubectl set image <name>=` does NOT reach unless named) ran
+#      ufal/dspace:issue-1351_simple_ror_authority, not dataquest/dspace:dspace-7_x.
+#      That image had applied Flyway migrations 7.6.2025.11.01-.04 to the DB on
+#      2026-06-29, so the git-declared image fails `migrate` validation forever:
+#      "Detected applied migration not resolved locally".
+#   2. local-config-map carried a 5th key, submission-forms.xml, with a matching
+#      subPath volumeMount on the backend. Regenerating the ConfigMap without it
+#      left the mount binding a nonexistent key -> kubelet creates a directory ->
+#      "error mounting ... not a directory" -> CrashLoopBackOff.
+#      NOT invented locally: overlays/kosarko-ns/submission-forms.xml is committed
+#      on origin/main. The k3s-rootless overlay simply never inherited it (it
+#      builds on ../docker-desktop, not on kosarko-ns). The copy added here is the
+#      one the live k3s cluster runs: the kosarko-ns file modulo CRLF->LF, with two
+#      lines differing -- the dc.publisher field uses a plain <input-type>onebox</>
+#      instead of <input-type autocomplete-custom="solr-publisher_ac">autocomplete</>.
+#      That `solr-` prefix is NOT a separate Solr core: SuggestionRestController
+#      strips it and queries the ordinary Discovery search index via
+#      searchService.search(), where `publisher_ac` is the autocomplete variant
+#      SolrServiceImpl builds by appending "_ac" to an indexed field. It is present
+#      and populated locally (facet on publisher_ac returns the seed publishers), so
+#      the onebox variant is NOT required by any local limitation -- it is simply
+#      what this cluster was running. Aligning it with kosarko-ns should work; that
+#      is a deliberate choice, not a fix, so it is left alone here.
+#
+# Both are now declared here so the overlay reproduces the running environment.
+# NOTE the floating tag + imagePullPolicy: Always combination is still a hazard:
+# any pod recreate re-pulls, and these tags get rebuilt upstream. Digest pinning
+# is the real fix (already the chosen pattern for ok-dspace CI/CD).
+# ---------------------------------------------------------------------------
+images:
+  - name: dataquest/dspace
+    newName: ufal/dspace
+    newTag: issue-1351_simple_ror_authority
+
+configMapGenerator:
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.cfg
+      - config.yml
+      # Was only ever in the live cluster; the backend subPath-mounts it at
+      # /dspace/config/submission-forms.xml and crashes on boot without it.
+      - submission-forms.xml
+  # The stylesheet referenced by themes[].headTags in config.yml. Its own
+  # ConfigMap rather than a key in local-config-map, so the hash suffix only
+  # changes (and only the frontend restarts) when the CSS itself changes.
+  - name: seed-testsite-css
+    files:
+      - seed-testsite.css
+
+patches:
+  # Drop the test-site stylesheet into the image's own assets/ directory.
+  # subPath mounts a single FILE, so it adds seed-testsite.css without shadowing
+  # the rest of assets/ (i18n, images, favicons) the way a directory mount would.
+  # The path must be inside dist/browser/assets: the <link href> in config.yml is
+  # relative to the app base, and that directory is what expressStaticGzip serves.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dspace-angular
+      spec:
+        template:
+          spec:
+            volumes:
+              - name: seed-testsite-css
+                configMap:
+                  name: seed-testsite-css
+            containers:
+              - name: dspace-angular
+                volumeMounts:
+                  - name: seed-testsite-css
+                    mountPath: /app/dist/browser/assets/seed-testsite.css
+                    subPath: seed-testsite.css
+    target:
+      kind: Deployment
+      name: dspace-angular
+
+  # Re-point both Ingress host rules from *.localhost (needs /etc/hosts -> root)
+  # to *.127.0.0.1.sslip.io, which resolves to 127.0.0.1 via public DNS with no
+  # hosts file and no root. nginx matches server_name ignoring the :8080 port.
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dspace.127.0.0.1.sslip.io
+    target:
+      kind: Ingress
+      name: dspace-ingress
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: minio.127.0.0.1.sslip.io
+    target:
+      kind: Ingress
+      name: minio-console-ingress
+
+  # docker-desktop sets the backend env var dspace__P__hostname=dspace.localhost.
+  # DSpace env vars OVERRIDE local.cfg, so without this it would clobber our
+  # sslip.io hostname at runtime (breaking CORS origins + redirects). Re-point it.
+  # Also inject the PAT encryption secret from clarin-token-secret.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dspace-backend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: dspace
+                env:
+                  - name: dspace__P__hostname
+                    value: "dspace.127.0.0.1.sslip.io"
+                  - name: CLARIN_TOKEN_ENCRYPTION_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: clarin-token-secret
+                        key: CLARIN_TOKEN_ENCRYPTION_SECRET
+    target:
+      kind: Deployment
+      name: dspace-backend
+
+  # Re-point every PVC from Docker Desktop's "hostpath" storage class to k3s's
+  # built-in "local-path". No name selector -> applies to all PVCs that flow
+  # through from the base + docker-desktop (solr-data-pvc, dspace-logs-pvc-rwx,
+  # tomcat-logs-pvc-rwx, postgres-data-pvc, minio-data-pvc). Without this they
+  # stay Pending forever because no "hostpath" provisioner exists on k3s.
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: local-path
+    target:
+      kind: PersistentVolumeClaim
