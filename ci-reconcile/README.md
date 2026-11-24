@@ -51,7 +51,7 @@ Two further consequences worth knowing:
 ## Bootstrap
 
 Prerequisites were confirmed for `kosarko-ns` and only need re-checking somewhere new: `create` on
-serviceaccounts/roles/rolebindings, quota headroom, egress to GitHub and the kube API (`networkpolicy.yaml` + the `network-policies` component allow both).
+serviceaccounts/roles/rolebindings, quota headroom, egress to GitHub and the kube API (`networkpolicy.yaml` allows both, plus DNS).
 
 ```bash
 # Guard: this MUST print https://rancher.cloud.e-infra.cz/...
@@ -75,6 +75,8 @@ kubectl auth can-i --as=system:serviceaccount:kosarko-ns:dspace-deployer \
   -n kosarko-ns delete deployments    # no
 kubectl auth can-i --as=system:serviceaccount:kosarko-ns:dspace-deployer \
   -n kosarko-ns get secrets           # no
+kubectl auth can-i --as=system:serviceaccount:kosarko-ns:dspace-deployer \
+  -n kosarko-ns patch networkpolicies # yes
 ```
 
 There is **no secret to create and no PAT to mint** — that is the point.

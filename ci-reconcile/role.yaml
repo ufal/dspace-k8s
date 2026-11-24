@@ -63,6 +63,10 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # NetworkPolicies from k8s/components/network-policies. No `delete`, like the rest.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
 
   # --- CRDs the overlay ships ----------------------------------------------
   # CloudNativePG Cluster: no `create`, like the workloads above - a Cluster

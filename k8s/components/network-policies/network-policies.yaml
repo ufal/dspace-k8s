@@ -175,3 +175,24 @@ spec:
       ports:
         - {protocol: TCP, port: 6443}
         - {protocol: TCP, port: 443}    # service port of 10.43.0.1
+---
+# 8. cert-manager HTTP-01 solver pods (Ingress uses cluster-issuer letsencrypt-prod).
+#    cert-manager creates them in this namespace; without this, certificate
+#    issuance and renewal fail.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-acme-http01-solver
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: same namespace as in policy 2
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 8089}
