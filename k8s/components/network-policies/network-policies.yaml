@@ -20,9 +20,11 @@ spec:
   egress:
     - to:
         - podSelector: {}
-    # DNS: any namespace, so we don't depend on the CoreDNS pod labels of a distro
+    # DNS: any namespace, so we don't depend on the CoreDNS pod labels of a distro;
+    # 169.254.20.10 is NodeLocal DNSCache, in case the cluster uses it.
     - to:
         - namespaceSelector: {}
+        - ipBlock: {cidr: 169.254.20.10/32}
       ports:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
@@ -71,7 +73,8 @@ spec:
         - ipBlock:
             cidr: 0.0.0.0/0
             # CLUSTER-SPECIFIC: an SMTP relay on a private address needs its own rule.
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+            # 169.254/16: link-local, incl. the 169.254.169.254 metadata endpoint.
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
         # IPv6: pods are dual-stack on e-INFRA and S3/ORCID have AAAA records; without
         # this, clients that try IPv6 first (aws-cli, barman) hang until timeout.
         - ipBlock:

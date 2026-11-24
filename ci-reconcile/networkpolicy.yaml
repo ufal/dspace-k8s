@@ -11,9 +11,10 @@ spec:
       app: ok-dspace-reconcile
   policyTypes: [Egress]
   egress:
-    # DNS
+    # DNS (169.254.20.10: NodeLocal DNSCache, in case the cluster uses it)
     - to:
         - namespaceSelector: {}
+        - ipBlock: {cidr: 169.254.20.10/32}
       ports:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
@@ -21,7 +22,7 @@ spec:
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
         - ipBlock:
             cidr: ::/0
             except: [2001:718:801:42cb::/64, fc00::/7, fe80::/10]
