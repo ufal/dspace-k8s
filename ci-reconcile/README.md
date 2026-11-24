@@ -51,7 +51,7 @@ Two further consequences worth knowing:
 ## Bootstrap
 
 Prerequisites were confirmed for `kosarko-ns` and only need re-checking somewhere new: `create` on
-serviceaccounts/roles/rolebindings, quota headroom, no NetworkPolicy, egress to GitHub.
+serviceaccounts/roles/rolebindings, quota headroom, egress to GitHub and the kube API (`networkpolicy.yaml` + the `network-policies` component allow both).
 
 ```bash
 # Guard: this MUST print https://rancher.cloud.e-infra.cz/...

@@ -23,6 +23,8 @@ resources:
 
 components:
   - components/dspace-backend-common
+  # On by default; local clusters opt out with components/network-policies-off
+  - components/network-policies
 
 configMapGenerator:
 - name: local-config-map

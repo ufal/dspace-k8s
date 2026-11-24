@@ -39,3 +39,8 @@ patches:
       - op: replace
         path: /spec/rules/0/host
         value: "${NEW_HOST}"
+
+# NetworkPolicies come from the base (k8s/components/network-policies). On a cluster
+# other than e-INFRA/CERIT or NRP check its CLUSTER-SPECIFIC values, or opt out:
+# components:
+#   - ../../k8s/components/network-policies-off

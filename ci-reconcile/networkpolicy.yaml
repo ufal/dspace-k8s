@@ -1,0 +1,24 @@
+# Only matters when the namespace has NetworkPolicies (k8s/components/network-policies).
+# The reconciler talks to the Kubernetes API, which on e-INFRA/CERIT sits on private
+# IPs that the component's public-egress policy excludes. GitHub is covered by it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ok-dspace-reconcile-egress-kube-api
+spec:
+  podSelector:
+    matchLabels:
+      app: ok-dspace-reconcile
+  policyTypes: [Egress]
+  egress:
+    - to:
+        # e-INFRA/CERIT: service IP + control-plane nodes (docs.cerit-sc.cz)
+        - ipBlock: {cidr: 10.43.0.1/32}
+        - ipBlock: {cidr: 10.16.62.14/32}
+        - ipBlock: {cidr: 10.16.62.15/32}
+        - ipBlock: {cidr: 10.16.62.16/32}
+        - ipBlock: {cidr: 10.16.62.17/32}
+        - ipBlock: {cidr: 10.16.62.18/32}
+      ports:
+        - {protocol: TCP, port: 6443}
+        - {protocol: TCP, port: 443}

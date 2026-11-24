@@ -9,6 +9,10 @@ resources:
 
 namespace: dspace-docker-desktop
 
+# No NetworkPolicy enforcement on Docker Desktop; drop the base's policies.
+components:
+  - ../../k8s/components/network-policies-off
+
 # -------------------------------------------------------------------------
 # Override local.cfg and config.yml with Docker Desktop–specific values.
 # Other configmap files (environment.prod.ts, user_exists.jsh) are kept
