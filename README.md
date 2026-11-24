@@ -226,6 +226,24 @@ patched directly into the cluster is reverted. Suspend the CronJob first if you 
 **Deploys are non-destructive** — no database, Solr or S3 wipe. The backend's `database migrate
 force` init container keeps the schema tracking the code without one.
 
+## Network policies
+
+`k8s/components/network-policies/` (included by the base) locks the namespace down: Postgres and Solr
+are reachable only from inside the namespace, the web pods only from the ingress controller, and
+outbound traffic is limited to DNS, the namespace itself and public IPs (S3, SMTP, ORCID, ...).
+Values marked `CLUSTER-SPECIFIC` fit e-INFRA/CERIT and NRP; check them on any other cluster.
+
+Local clusters opt out (docker-desktop does):
+
+```yaml
+components:
+  - ../../k8s/components/network-policies-off
+```
+
+`ci-reconcile/networkpolicy.yaml` gives the reconciler access to the kube API; apply
+`ci-reconcile/` before (or together with) the first deploy that carries the policies.
+Blocked connections are dropped silently and show up as timeouts in the application logs.
+
 ## Pre-Deployment Configuration (when not using overlays)
 
 **IMPORTANT: Review and update these files before deploying to production!**

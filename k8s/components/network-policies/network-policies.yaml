@@ -1,0 +1,201 @@
+# How these combine: once a pod is selected by any policy, it may only send/receive
+# what some policy allows. Rules only ever allow; allows from all policies add up.
+#
+# Not covered here (add a policy in the overlay if needed):
+#   - metrics scraping other than CNPG's (allow ingress from cattle-monitoring-system)
+#   - handle server (#25): inbound 2641/tcp+udp and 8000/tcp from the internet
+
+# 1. Lock down every pod; allow traffic within the namespace and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-baseline
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # backend -> postgres/solr, cronjobs -> postgres/solr, CNPG replication
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+    # DNS: any namespace, so we don't depend on the CoreDNS pod labels of a distro;
+    # 169.254.20.10 is NodeLocal DNSCache, in case the cluster uses it.
+    - to:
+        - namespaceSelector: {}
+        - ipBlock: {cidr: 169.254.20.10/32}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+# 2. Public web traffic: only from the ingress controller, only to the two web pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-from-ingress-controller
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [dspace-angular, dspace-backend]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: RKE2 runs its ingress controller here. Checked 2026-11:
+              # e-INFRA/CERIT = ingress-nginx, NRP = traefik, both in kube-system.
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 4000}   # dspace-angular
+        - {protocol: TCP, port: 8080}   # dspace-backend
+---
+# 3. Outbound to public IPs (all ports) for everything except Solr and Angular.
+#    NotIn also matches pods without an `app` label: CronJob pods and CNPG pods.
+#    Who needs it:
+#      backend  - S3 assetstore (s3.cl4.du.cesnet.cz), SMTP, ORCID/ROR/Sherpa lookups,
+#                 live import (PubMed, OpenAIRE, EPO), file-downloader and OAI URLs (often :80)
+#      cronjobs - S3 log sync, mails (subscriptions, health-report)
+#      postgres - barman WAL archive/backups to S3
+#      ci-reconcile - GitHub
+#    Private ranges stay blocked: no reaching other tenants' pods or internal services.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-egress-public
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: NotIn, values: [dspace-solr, dspace-angular]}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            # CLUSTER-SPECIFIC: an SMTP relay on a private address needs its own rule.
+            # 169.254/16: link-local, incl. the 169.254.169.254 metadata endpoint.
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+        # IPv6: pods are dual-stack on e-INFRA and S3/ORCID have AAAA records; without
+        # this, clients that try IPv6 first (aws-cli, barman) hang until timeout.
+        - ipBlock:
+            cidr: ::/0
+            except:
+              # CLUSTER-SPECIFIC: e-INFRA/CERIT pod IPv6 range is public (global
+              # unicast), so exclude the cluster's /64 to keep other tenants' pods out.
+              # Checked 2026-11: all kosarko-ns pods are in it. NRP pods use ULA
+              # fd00:10:42::/..., already covered by fc00::/7 below.
+              - 2001:718:801:42cb::/64
+              - fc00::/7    # unique local
+              - fe80::/10   # link local
+---
+# 4. CNPG operator -> Postgres pods. Without it the operator loses track of the
+#    cluster (status, failover, backups). Ports per CNPG and CERIT docs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-postgres-from-cnpg-operator
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: dspace-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: operator namespace (upstream default: cnpg-system).
+              # cloudnativepg on both e-INFRA/CERIT and NRP.
+              kubernetes.io/metadata.name: cloudnativepg
+      ports:
+        - {protocol: TCP, port: 8000}   # instance manager
+        - {protocol: TCP, port: 5432}   # postgres
+---
+# 5. Angular SSR -> backend through the public hostname (config.yml rest.host).
+#    The request loops back to the ingress controller pod, i.e. a private IP that
+#    policy 3 doesn't cover. Delete this policy once rest.ssrBaseUrl points at
+#    http://dspace-backend-service:8080/server (policy 1 then covers it).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-angular-to-ingress-controller
+spec:
+  podSelector:
+    matchLabels:
+      app: dspace-angular
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: same namespace as in policy 2
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 443}    # rke2-ingress-nginx container port
+        - {protocol: TCP, port: 8443}   # rke2-traefik websecure container port
+---
+# 6. Prometheus -> CNPG metrics exporter (postgres-cnpg-cluster.yaml: enablePodMonitor).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-postgres-from-monitoring
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: dspace-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: Rancher monitoring namespace
+              kubernetes.io/metadata.name: cattle-monitoring-system
+      ports:
+        - {protocol: TCP, port: 9187}
+---
+# 7. CNPG pods -> Kubernetes API (instance manager: leader election, status).
+#    On e-INFRA/CERIT the API sits on private IPs, which policy 3 excludes.
+#    On NRP the API IPs are public, so policy 3 already covers them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-postgres-egress-kube-api
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: cnpg.io/cluster, operator: Exists}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        # CLUSTER-SPECIFIC: e-INFRA/CERIT values from docs.cerit-sc.cz
+        # (operators/postgres-cnpg/operations): service IP + control-plane nodes.
+        # Checked 2026-11: 10.16.62.14:6443 reachable from kosarko-ns.
+        - ipBlock: {cidr: 10.43.0.1/32}
+        - ipBlock: {cidr: 10.16.62.14/32}
+        - ipBlock: {cidr: 10.16.62.15/32}
+        - ipBlock: {cidr: 10.16.62.16/32}
+        - ipBlock: {cidr: 10.16.62.17/32}
+        - ipBlock: {cidr: 10.16.62.18/32}
+      ports:
+        - {protocol: TCP, port: 6443}
+        - {protocol: TCP, port: 443}    # service port of 10.43.0.1
+---
+# 8. cert-manager HTTP-01 solver pods (Ingress uses cluster-issuer letsencrypt-prod).
+#    cert-manager creates them in this namespace; without this, certificate
+#    issuance and renewal fail.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-acme-http01-solver
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # CLUSTER-SPECIFIC: same namespace as in policy 2
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 8089}

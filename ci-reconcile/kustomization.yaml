@@ -17,3 +17,4 @@ resources:
   - role.yaml
   - rolebinding.yaml
   - cronjob.yaml
+  - networkpolicy.yaml

@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Removes every NetworkPolicy the base adds (k8s/components/network-policies).
+# For local clusters (docker-desktop, k3s) whose ingress controller, DNS or CNPG
+# setup doesn't match the CLUSTER-SPECIFIC values there.
+patches:
+  - target:
+      kind: NetworkPolicy
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: all-matched-by-target

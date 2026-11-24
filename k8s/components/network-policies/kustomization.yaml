@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# NetworkPolicies for a DSpace namespace. Included by k8s/kustomization.yaml, so
+# every overlay gets them. To opt out (local clusters), add to the overlay:
+#
+#   components:
+#     - ../../k8s/components/network-policies-off
+#
+# Values marked CLUSTER-SPECIFIC in network-policies.yaml are checked for
+# e-INFRA/CERIT (ingress-nginx) and NRP (traefik); check them on other clusters.
+# docker-desktop opts out (no NetworkPolicy enforcement there anyway).
+
+resources:
+  - network-policies.yaml
