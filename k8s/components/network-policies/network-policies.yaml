@@ -109,6 +109,23 @@ spec:
       ports:
         - {protocol: TCP, port: 8000}   # instance manager
         - {protocol: TCP, port: 5432}   # postgres
+    # API server -> instance manager via pods/proxy; `kubectl cnpg status` uses it.
+    # The connection comes from the control-plane nodes.
+    - from:
+        # CLUSTER-SPECIFIC: e-INFRA/CERIT control plane (checked 2026-11: cnpg status works)
+        - ipBlock: {cidr: 10.16.62.14/32}
+        - ipBlock: {cidr: 10.16.62.15/32}
+        - ipBlock: {cidr: 10.16.62.16/32}
+        - ipBlock: {cidr: 10.16.62.17/32}
+        - ipBlock: {cidr: 10.16.62.18/32}
+        # CLUSTER-SPECIFIC: NRP control plane (from the NRP suggestion; not checked)
+        - ipBlock: {cidr: 78.128.228.80/32}
+        - ipBlock: {cidr: 78.128.228.81/32}
+        - ipBlock: {cidr: 78.128.228.208/32}
+        - ipBlock: {cidr: 78.128.228.209/32}
+        - ipBlock: {cidr: 78.128.245.143/32}
+      ports:
+        - {protocol: TCP, port: 8000}
 ---
 # 5. Angular SSR -> backend through the public hostname (config.yml rest.host).
 #    The request loops back to the ingress controller pod, i.e. a private IP that
