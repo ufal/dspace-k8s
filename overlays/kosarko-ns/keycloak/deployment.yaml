@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  # One pod with an in-pod H2 database: two would be two separate IdPs.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.8.2
+          # start-dev = H2 database inside the container, no PVC. Every restart
+          # starts from scratch and re-imports realm.json, so the realm in git is
+          # the whole state: nothing configured by hand in the admin console
+          # survives a restart. That is intended for a test IdP. The user `id`s
+          # are pinned in realm.json so `sub` stays stable across restarts.
+          args: ["start-dev", "--import-realm"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9000
+              name: management
+          env:
+            # Issuer = <this>/realms/dspace-test. Fixed, not derived from the
+            # request, so the backend sees the same issuer the browser does.
+            - name: KC_HOSTNAME
+              value: https://ok-keycloak.dyn.cloud.e-infra.cz
+            # The admin console is NOT published by the Ingress (see
+            # ingress.yaml); it is reached through a port-forward, so its URL
+            # is the local end of that.
+            - name: KC_HOSTNAME_ADMIN
+              value: http://localhost:8080
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # Secret `keycloak-secrets` is created by hand, see README.md.
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: admin-password
+            # Substituted into realm.json at import (${DSPACE_CLIENT_SECRET},
+            # ${TEST_USERS_PASSWORD}). No KC_ prefix: that namespace is
+            # Keycloak's own configuration.
+            - name: DSPACE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: dspace-client-secret
+            - name: TEST_USERS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: test-users-password
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm

@@ -1,0 +1,49 @@
+# Additions to ../../../k8s/components/network-policies for Keycloak. Same
+# CLUSTER-SPECIFIC values (ingress controller in kube-system); see there.
+#
+# Keycloak itself needs no egress beyond DNS (dspace-baseline): it calls out to
+# nothing. It does match dspace-egress-public (app NotIn [solr, angular]), which
+# it doesn't use.
+
+# Public traffic to Keycloak, only from the ingress controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-from-ingress-controller
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+# Backend -> Keycloak through the public hostname. The backend has to use the
+# public issuer URL (discovery, token, UserInfo, JWKS): Spring checks that the
+# discovered issuer equals the configured one, and Keycloak only ever reports
+# its public one. That request loops back to the ingress controller pod, a
+# private address that dspace-egress-public excludes -- the same situation as
+# dspace-angular-to-ingress-controller. Without this the OIDC login hangs until
+# the backend's HTTP timeout instead of failing with a clear error.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dspace-backend-to-ingress-controller
+spec:
+  podSelector:
+    matchLabels:
+      app: dspace-backend
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 443}    # rke2-ingress-nginx container port
+        - {protocol: TCP, port: 8443}   # rke2-traefik websecure container port

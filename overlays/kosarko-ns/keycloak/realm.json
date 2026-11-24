@@ -1,0 +1,146 @@
+{
+  "realm": "dspace-test",
+  "displayName": "ok-dspace OIDC test IdP",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"Username\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"Email\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"First name\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"Last name\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false},{\"name\":\"voperson_external_id\",\"displayName\":\"voperson_external_id\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":true},{\"name\":\"voperson_external_affiliation\",\"displayName\":\"voperson_external_affiliation\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":true}],\"groups\":[]}"
+          ]
+        }
+      }
+    ]
+  },
+  "groups": [
+    {"name": "testers"},
+    {"name": "editors"}
+  ],
+  "clients": [
+    {
+      "clientId": "dspace",
+      "name": "ok-dspace",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${DSPACE_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://ok-dspace.dyn.cloud.e-infra.cz/server/api/authn/oidc/callback/clarin-oidc"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://ok-dspace.dyn.cloud.e-infra.cz/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "voperson_external_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "voperson_external_id",
+            "claim.name": "voperson_external_id",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "voperson_external_affiliation",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "voperson_external_affiliation",
+            "claim.name": "voperson_external_affiliation",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "9349e643-d00d-4bc3-8616-12f700693035",
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.org",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Verified",
+      "groups": ["/testers"],
+      "attributes": {
+        "voperson_external_affiliation": ["member@example.org", "affiliate@example.com"]
+      },
+      "credentials": [{"type": "password", "value": "${TEST_USERS_PASSWORD}", "temporary": false}]
+    },
+    {
+      "id": "3fba68da-c68d-4898-a588-cb2be27e5fff",
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@example.org",
+      "emailVerified": false,
+      "firstName": "Bob",
+      "lastName": "Unverified",
+      "groups": ["/testers", "/editors"],
+      "credentials": [{"type": "password", "value": "${TEST_USERS_PASSWORD}", "temporary": false}]
+    },
+    {
+      "id": "360edd23-cb96-47cd-b314-54b0b9f9ffdd",
+      "username": "carol",
+      "enabled": true,
+      "email": "carol@example.org",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Linked",
+      "attributes": {
+        "voperson_external_id": ["carol@idp-a.example.org"],
+        "voperson_external_affiliation": ["staff@idp-a.example.org"]
+      },
+      "credentials": [{"type": "password", "value": "${TEST_USERS_PASSWORD}", "temporary": false}]
+    },
+    {
+      "id": "b71257d2-df96-4b01-a3a9-4627b749f2ee",
+      "username": "dave",
+      "enabled": true,
+      "firstName": "Dave",
+      "lastName": "NoEmail",
+      "credentials": [{"type": "password", "value": "${TEST_USERS_PASSWORD}", "temporary": false}]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak
+  ports:
+    # Only the public HTTP port. The management port (9000: health) stays
+    # pod-internal for the probes.
+    - name: http
+      port: 8080
+      targetPort: http

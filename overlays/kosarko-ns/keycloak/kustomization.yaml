@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Test OIDC provider (Keycloak) for the CLARIN OIDC login work
+# (ufal/clarin-dspace, ClarinOidcAuthentication). See README.md here for the
+# values DSpace needs (issuer, client, redirect URI), the test users and the
+# one-time manual steps (the Secret and the first apply of the Deployment).
+#
+# A Component so the whole thing comes and goes with ONE line in
+# ../kustomization.yaml. It deliberately does not touch local-config-map: the
+# realm is its own generated ConfigMap, so editing it rolls only Keycloak and
+# never bounces dspace-backend.
+# ---------------------------------------------------------------------------
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - network-policies.yaml
+configMapGenerator:
+  # Keep the name-suffix hash: it is what restarts Keycloak (and so re-imports
+  # the realm) when realm.json changes.
+  - name: keycloak-realm
+    files:
+      - dspace-test-realm.json=realm.json

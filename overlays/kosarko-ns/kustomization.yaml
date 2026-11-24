@@ -3,6 +3,11 @@ kind: Kustomization
 resources:
   - ../../k8s
 namespace: kosarko-ns # <-- change to whatever you need
+# Test OIDC provider (Keycloak) at ok-keycloak.dyn.cloud.e-infra.cz for the
+# CLARIN OIDC login work. Self-contained; drop this line to remove it (then
+# delete the keycloak objects by hand -- the reconciler has no `delete`).
+components:
+  - keycloak
 configMapGenerator:
   - name: local-config-map
     behavior: merge
