@@ -11,7 +11,7 @@ set -euo pipefail
 
 NS=kosarko-ns
 ISSUER=https://ok-keycloak.dyn.cloud.e-infra.cz/realms/dspace-test
-REDIRECT=https://ok-dspace.dyn.cloud.e-infra.cz/server/api/authn/oidc/callback/clarin-oidc
+REDIRECT=https://ok-dspace.dyn.cloud.e-infra.cz/server/api/authn/oidc-callback
 CLIENT=dspace
 
 secret() { kubectl get secret keycloak-secrets -n "$NS" -o "jsonpath={.data.$1}" | base64 -d; }

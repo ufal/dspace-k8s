@@ -19,7 +19,7 @@ under the issuer by default.
 | Discovery | `<issuer>/.well-known/openid-configuration` |
 | Client ID (`authentication-oidc.client-id`) | `dspace` (confidential, client_secret_basic, PKCE S256 required) |
 | Client secret (`authentication-oidc.client-secret`) | key `dspace-client-secret` of Secret `keycloak-secrets` |
-| Redirect URI (registered, exact) | `https://ok-dspace.dyn.cloud.e-infra.cz/server/api/authn/oidc/callback/clarin-oidc` |
+| Redirect URI (registered, exact) | `https://ok-dspace.dyn.cloud.e-infra.cz/server/api/authn/oidc-callback`. The pre-c4577c7e63 `…/api/authn/oidc/callback/clarin-oidc` is also still registered, for images built before the callback moved (its cookie path broke the UI login); drop it once no such image is deployed. |
 | Scopes | `openid email profile` are enough; the claims below are sent regardless of scope. Do NOT request `voperson_external_id` as a scope: Keycloak answers an unknown scope with `invalid_scope`. |
 | Signing | RS256 (Keycloak's default) |
 
