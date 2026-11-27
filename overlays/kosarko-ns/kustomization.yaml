@@ -140,10 +140,10 @@ patches:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: ef3a2d663def83790907be750c41c9ae949b383f
+    newTag: 46c366d85646f02fb9974e56b529dd6776a4dbcc
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
-    newTag: ef3a2d663def83790907be750c41c9ae949b383f
+    newTag: 46c366d85646f02fb9974e56b529dd6776a4dbcc
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
     newTag: 5212f97b26b4e1bb0acadf9af6c5c64f7487adc0
