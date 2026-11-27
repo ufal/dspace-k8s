@@ -22,6 +22,11 @@ patches:
     target:
       kind: Deployment
       name: dspace-backend
+  # Solr 9+ moved ICU analysis into an opt-in module, needed by the "search" core's schema.xml
+  - path: solr-statefulset.yaml
+    target:
+      kind: StatefulSet
+      name: dspace-solr
   # PostgreSQL backup configuration - customize S3 endpoint and bucket
   - path: postgres-cnpg-backup-plugin-config.yaml
     target:
@@ -78,10 +83,10 @@ configMapGenerator:
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
-    newTag: dspace-7_x
+    newTag: dspace-9_x
   - name: dataquest/dspace-solr
     newName: ufal/dspace-solr
-    newTag: dspace-7_x
+    newTag: dspace-9_x
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
-    newTag: nrp-k8s-demo
+    newTag: dspace-9_x

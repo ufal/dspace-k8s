@@ -7,6 +7,13 @@ spec:
     spec:
       containers:
         - name: dspace
+          args:
+            - |
+              # this causes the script to exit immediately if any command exits with a non-zero status
+              set -e
+
+              echo "Starting DSpace server";
+              java -jar /dspace/webapps/server-boot.jar
           env:
             - name: dspace__P__hostname
               value: "clarin-dspace-demo.dyn.nrp1.du.cesnet.cz"

@@ -17,9 +17,11 @@ spec:
           env:
             - name: DSPACE_REST_HOST
               value: "clarin-dspace-demo.dyn.nrp1.du.cesnet.cz"
+            - name: DSPACE_UI_ALLOWED_HOSTS
+              value: "clarin-dspace-demo.dyn.nrp1.du.cesnet.cz"
           volumeMounts:
             - name: seed-testsite-css
-              mountPath: /app/dist/browser/assets/seed-testsite.css
+              mountPath: /app/src/assets/seed-testsite.css
               subPath: seed-testsite.css
             - name: angular-config
               mountPath: /app/config/config.yml

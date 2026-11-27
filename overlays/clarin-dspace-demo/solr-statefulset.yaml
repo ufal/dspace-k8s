@@ -1,0 +1,16 @@
+# Solr 9+ moved ICU analysis (used by the "search" core's schema.xml, e.g. ICUFoldingFilterFactory)
+# out of the always-loaded contrib/ jars and into an opt-in "modules" system.
+# Without this, the dspace-9_x Solr image fails to load the search core: "Error loading class
+# 'org.apache.lucene.analysis.icu.ICUFoldingFilterFactory'".
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dspace-solr
+spec:
+  template:
+    spec:
+      containers:
+        - name: solr
+          env:
+            - name: SOLR_MODULES
+              value: analysis-extras
