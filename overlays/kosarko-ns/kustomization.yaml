@@ -146,4 +146,4 @@ images:
     newTag: 46c366d85646f02fb9974e56b529dd6776a4dbcc
   - name: dataquest/dspace-angular
     newName: ufal/dspace-angular
-    newTag: 5212f97b26b4e1bb0acadf9af6c5c64f7487adc0
+    newTag: 2785cec4a490a822e20bf28d4416389a9c1fbd2c
