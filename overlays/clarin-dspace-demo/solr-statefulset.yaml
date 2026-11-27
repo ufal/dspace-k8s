@@ -11,6 +11,24 @@ spec:
     spec:
       containers:
         - name: solr
+          # DSpace 9.x: Quality Assurance/OpenAIRE broker (qaevent) and suggestion
+          # system cores. Both configsets ship in the image but aren't precreated
+          # by the base command, so QAEventServiceImpl 404s against Solr the first
+          # time anything exercises either feature (e.g. previewing a bitstream).
+          # This is the full base command plus those two extra precreate-core lines,
+          # since a strategic merge patch replaces a plain string-list field wholesale.
+          command:
+            - /bin/bash
+            - -c
+            - |
+              init-var-solr
+              precreate-core authority /opt/solr/server/solr/configsets/authority
+              precreate-core oai /opt/solr/server/solr/configsets/oai
+              precreate-core search /opt/solr/server/solr/configsets/search
+              precreate-core statistics /opt/solr/server/solr/configsets/statistics
+              precreate-core qaevent /opt/solr/server/solr/configsets/qaevent
+              precreate-core suggestion /opt/solr/server/solr/configsets/suggestion
+              exec solr -f
           env:
             - name: SOLR_MODULES
               value: analysis-extras

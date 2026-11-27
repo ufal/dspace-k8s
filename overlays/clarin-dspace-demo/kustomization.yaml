@@ -79,7 +79,10 @@ configMapGenerator:
   - name: seed-testsite-css
     files:
       - seed-testsite.css
-
+  - name: local-config-map
+    behavior: merge
+    files:
+      - local.d/extra.cfg
 images:
   - name: dataquest/dspace
     newName: ufal/dspace
